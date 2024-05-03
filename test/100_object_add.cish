@@ -1,0 +1,19 @@
+class Calculator {
+  let x;
+  let y;
+
+  Calculator(a, b){
+    x = a;
+    y = b;
+  }
+
+  add(){
+    return x+y;
+  }
+}
+
+main() {
+  Calculator* obj = new Calculator(10, 5);
+  let x = obj->add();
+  return x;
+}

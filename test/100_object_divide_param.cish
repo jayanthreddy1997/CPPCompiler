@@ -1,0 +1,17 @@
+class Calculator {
+  divide(x, y){
+    if(y > 0){
+      return x/y;
+    }else{
+      return -1;
+    }
+  }
+}
+
+main() {
+  Calculator* obj = new Calculator();
+  let a = obj->divide(10, 5);
+  let b = obj->divide(10, 0);
+  let c = a*b;
+  return c;
+}

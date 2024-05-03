@@ -1,0 +1,11 @@
+class A {
+    get(){
+        return 1;
+    }
+}
+
+main() {
+  A* obj = new A();
+  let x = obj->get();
+  return x;
+}
