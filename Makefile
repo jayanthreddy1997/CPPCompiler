@@ -4,7 +4,7 @@
 # change to a different ocamlc if you prefer (e.g., ocamlopt)
 COMPILER=ocamlc
  
-all: clean cish
+all: clean cish cppish
 
 mips:
 	$(COMPILER) -c word32.ml
@@ -20,7 +20,17 @@ cish: mips
 	$(COMPILER) -c cish_eval.ml
 	$(COMPILER) -c cish_compile.ml
 	$(COMPILER) -c cish.ml
-	$(COMPILER) -o cpp_compiler cish_ast.cmo cish_parse.cmo cish_lex.cmo cish_eval.cmo word32.cmo mips.cmo cish_compile.cmo cish.cmo
+	$(COMPILER) -o c_compiler cish_ast.cmo cish_parse.cmo cish_lex.cmo cish_eval.cmo word32.cmo mips.cmo cish_compile.cmo cish.cmo
+
+cppish: mips
+	$(COMPILER) -c cppish_ast.ml
+	ocamlyacc cppish_parse.mly
+	${COMPILER} -c cppish_parse.mli
+	${COMPILER} -c cppish_parse.ml
+	ocamllex cppish_lex.mll
+	$(COMPILER) -c cppish_lex.ml
+	${COMPILER} -o cpp_compiler cppish_ast.cmo cish_ast.cmo cppish_parse.cmo cish_parse.cmo cppish_lex.cmo cish_lex.cmo cish_eval.cmo word32.cmo mips.cmo cish_compile.cmo cish.cmo
+
 
 clean:
-	-rm *.cmo *.cmi cpp_compiler cish_parse.ml cish_parse.mli cish_lex.ml
+	-rm *.cmo *.cmi c_compiler cpp_compiler cish_parse.ml cish_parse.mli cish_lex.ml

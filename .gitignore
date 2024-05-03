@@ -32,3 +32,4 @@ cish_lex.ml
 cish_parse.ml
 cish_parse.mli
 cpp_compiler
+c_compiler
