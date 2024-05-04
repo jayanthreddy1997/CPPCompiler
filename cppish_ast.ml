@@ -42,11 +42,12 @@ and stmt = rstmt * pos
 
 
 type funcsig = { name : var; args : var list; body : stmt; pos : pos }
-type func = Fn of funcsig
+type func2sig = { name : var; args : var list; body : stmt; }
+type func2 = Fn2 of func2sig
 
 type classsig = {
   cname: class_name;
-  cbody: func list
+  cbody: func2 list
 }
 
 type klass = Class of classsig
@@ -54,8 +55,8 @@ type klass = Class of classsig
 let skip : rstmt = Exp(Int 0,0)          (* simulate a skip statement *)
 
 type func_klass = 
-  | Fn1 of func 
-  | Cl1 of klass
+  | Fn of funcsig
+  | Class of classsig
 
 type program = func_klass list
 

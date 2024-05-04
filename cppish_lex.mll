@@ -1,6 +1,6 @@
 (* header section *)
 {
-open Parse
+open Cppish_parse
 open Lexing
 
 let incr_lineno lexbuf =

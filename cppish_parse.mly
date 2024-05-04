@@ -15,7 +15,6 @@ let parse_error s =
 
 /* nonterminals */
 %type <Cppish_ast.program> program
-%type <Cppish_ast.func> func
 %type <Cppish_ast.func_klass> func_klass
 // %type <Cppish_ast.klass> klass
 %type <Cppish_ast.var list> idlist
@@ -41,7 +40,8 @@ let parse_error s =
 %token RETURN IF ELSE WHILE FOR
 %token LET COMMA CLASS UNIQUE_PTR SHARED_PTR NEW DOT NIL
 %token <int> INT 
-%token <string> ID 
+%token <string> ID
+%token <string> ID2
 %token EOF
 
 /* Start grammer rules*/
@@ -53,12 +53,13 @@ let parse_error s =
 // | klass { [$1] }
 // | klass program { $1::$2 }
 program:
+// | ID {[Fn{name=""; args=[]; body=(skip, rhs 1); pos=rhs 1}]}
   func_klass { [$1] }
 | func_klass program { $1::$2 }
 
 func_klass:
   func { $1 }
-  | klass { $1 }
+| klass SEMI { $1 }
 
 func :
   ID formals LBRACE stmtlist RBRACE { Fn{name=$1;args=$2;body=$4;pos=rhs 1} }
@@ -94,13 +95,28 @@ stmtlist :
   stmt { $1 }
 | stmt stmtlist { (Seq($1,$2), rhs 1) }
 
-cstmt :
-    yexp { Fn{name="__vars__";args=[];body=(Exp $1, rhs 1);pos=rhs 1} } 
-  | func { $1 }
+cfunc:
+| ID formals LBRACE stmtlist RBRACE { Fn2{name=$1;args=$2;body=$4;} }
+
+cfuncs:
+  cfunc { [$1] }
+| cfunc cfuncs { $1::$2 }
+
+cattr:
+  yexp SEMI { Fn2{name="__vars__";args=[];body=(Exp $1, rhs 1);} }
+
+cattrs:
+  cattr { [$1] }
+| cattr cattrs { $1::$2 }
+
+// cstmt :
+//     yexp { Fn{name="__vars__";args=[];body=(Exp $1, rhs 1);pos=rhs 1} } 
+//   | func { $1 }
 
 cbody : 
-    cstmt { [$1] }
-  | cstmt cbody { $1::$2 }
+  cattrs { $1 }
+| cfuncs { $1 }
+| cattrs cfuncs { $1 @ $2 }
 
 expopt : 
   { None }
@@ -109,16 +125,16 @@ expopt :
 yexp:
   orexp { $1 }
 | ID EQ yexp { (Assign($1,$3), rhs 1) }
-| ID TIMES ID EQ newobj{ Ptr($1, $3, $5)} // class_name *p = new class_name();
-| TIMES yexp EQ NEW ID formals{ Ptr($5, $2, (New($5, $6), rhs 1))}  // *p = new class_name();
-| TIMES addexp EQ yexp{ Store($2, $4)} //TODO: Revisit this.  // *(p+4) = e
-| TIMES addexp { Load($2)} //TODO: Revisit this.  // *(p+4)
-| UNIQUE_PTR LT ID GT ID LPAREN newobj RPAREN { UniquePtr($3, $5)} 
-| SHARED_PTR LT ID GT ID LPAREN ID RPAREN{ SharedPtr($3, $5)}
-| SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { SharedPtr($3, $5)}
+| ID TIMES ID EQ newobj{ (Ptr($1, $3, $5), rhs 1)} // class_name *p = new class_name();
+| TIMES yexp EQ newobj { (Store($2, $4), rhs 1)}  // *(p + y) = new class_name();
+| TIMES addexp EQ yexp{ (Store($2, $4), rhs 1)} //TODO: Revisit this.  // *(p+4) = e
+| TIMES addexp { (Load($2), rhs 1)} //TODO: Revisit this.  // *(p+4)
+| UNIQUE_PTR LT ID GT ID LPAREN newobj RPAREN { (UniquePtr($3, $5, $7), rhs 1)} 
+| SHARED_PTR LT ID GT ID LPAREN ID RPAREN { (SharedPtr($3, $5, (Var($7), rhs 1)), rhs 1)} // p = shared_ptr<class_name>(y)
+| SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { (SharedPtr($3, $5, $7), rhs 1)}
 
 newobj:
-  NEW ID formals{(New($2, $3), rhs 1)}
+  NEW ID LPAREN explist RPAREN {(New($2, $4), rhs 1)}
 | NIL {(Nil, rhs 1)}
 
 explist :
@@ -164,8 +180,11 @@ unaryexp :
 atomicexp :
   INT { (Int $1, rhs 1) }
 | ID { (Var $1, rhs 1) }
-| ID LPAREN RPAREN { (Call($1,[]), rhs 1) }
-| ID LPAREN explist RPAREN { (Call($1,$3), rhs 1) }
-| ID DOT ID LPAREN RPAREN { (Invoke($1, $3, []), rhs 1) }
-| ID DOT ID LPAREN explist RPAREN { (Invoke($1,$3, $5), rhs 1) }
+| funccall{ ($1, rhs 1) }
+| yexp DOT ID LPAREN RPAREN { (Invoke($1, $3, []), rhs 1) } // TODO: check if yexp is enough
+| yexp DOT ID LPAREN explist RPAREN { (Invoke($1,$3, $5), rhs 1) }
 | LPAREN yexp RPAREN { $2 }
+
+funccall:
+| ID LPAREN RPAREN { Call($1, []) }
+| ID LPAREN explist RPAREN { Call($1, $3) }
