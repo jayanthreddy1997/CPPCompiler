@@ -47,6 +47,17 @@ let parse_error s =
 %token <string> ID2
 %token EOF
 
+%left COMMA
+%left OR
+%left AND
+%left LTE GTE LT GT
+%left EQEQ NEQ
+%left PLUS MINUS
+%left TIMES DIV // TODO: we are missing % operator
+%left BANG
+%left DOT
+%left LPAREN RPAREN
+
 /* Start grammer rules*/
 %%
 
@@ -164,10 +175,8 @@ atomicexp :
 | funccall{ ($1, rhs 1) }
 | MALLOC LPAREN yexp RPAREN { (Malloc($3), rhs 1) }
 | LPAREN yexp RPAREN { $2 }
-// TODO: Code below causes RR conflict
-// | yexp DOT ID LPAREN RPAREN { (Invoke($1, $3, []), rhs 1) } // TODO: check if yexp is enough
-// | yexp DOT ID LPAREN explist RPAREN { (Invoke($1,$3, $5), rhs 1) }
-// | LPAREN yexp RPAREN { $2 }
+| ID DOT ID LPAREN RPAREN { (Invoke((Var($1), rhs 1), $3, []), rhs 1) } // TODO: check if yexp is enough
+| LPAREN yexp RPAREN DOT ID LPAREN explist RPAREN { (Invoke($2, $5, $7), rhs 1) }
 
 funccall:
 | ID LPAREN RPAREN { Call($1, []) }
