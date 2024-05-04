@@ -15,8 +15,10 @@ let parse_error s =
 
 /* nonterminals */
 %type <Cppish_ast.program> program
+%type <Cppish_ast.class_member> class_member
+%type <Cppish_ast.klass> klass
 %type <Cppish_ast.func_klass> func_klass
-// %type <Cppish_ast.klass> klass
+%type <Cppish_ast.func> func
 %type <Cppish_ast.var list> idlist
 %type <Cppish_ast.var list> formals
 %type <Cppish_ast.stmt> stmt
@@ -47,25 +49,26 @@ let parse_error s =
 /* Start grammer rules*/
 %%
 
-// program:
-//   func { [$1] }
-// | func program { $1::$2 }
-// | klass { [$1] }
-// | klass program { $1::$2 }
 program:
-// | ID {[Fn{name=""; args=[]; body=(skip, rhs 1); pos=rhs 1}]}
-  func_klass { [$1] }
-| func_klass program { $1::$2 }
+  | func_klass { [$1] }
+  | func_klass program { $1 :: $2 }
 
 func_klass:
-  func { $1 }
-| klass SEMI { $1 }
+    klass SEMI { Klass $1 }
+  | func { Fn $1 }
+  
+
+klass:
+  CLASS ID LBRACE class_member RBRACE { Klass{cname=$2;cvars=$4.cvars;cmethods=$4.cmethods} }
+
+// TODO: need to define class_member and few others as a nonterminal
+class_member:
+    ID SEMI class_member { {cvars=$1 :: $3.cvars; cmethods=$3.cmethods} }
+  | func class_member { {cvars=$2.cvars; cmethods=$1 :: $2.cmethods} }
+  | /* empty */ { {cvars=[]; cmethods=[]} }
 
 func :
   ID formals LBRACE stmtlist RBRACE { Fn{name=$1;args=$2;body=$4;pos=rhs 1} }
-
-klass :
-  CLASS ID LBRACE cbody RBRACE { Class{cname=$2;cbody=$4} }
 
 formals :
   LPAREN RPAREN { [] }
@@ -94,29 +97,6 @@ stmt :
 stmtlist :
   stmt { $1 }
 | stmt stmtlist { (Seq($1,$2), rhs 1) }
-
-cfunc:
-| ID formals LBRACE stmtlist RBRACE { Fn2{name=$1;args=$2;body=$4;} }
-
-cfuncs:
-  cfunc { [$1] }
-| cfunc cfuncs { $1::$2 }
-
-cattr:
-  yexp SEMI { Fn2{name="__vars__";args=[];body=(Exp $1, rhs 1);} }
-
-cattrs:
-  cattr { [$1] }
-| cattr cattrs { $1::$2 }
-
-// cstmt :
-//     yexp { Fn{name="__vars__";args=[];body=(Exp $1, rhs 1);pos=rhs 1} } 
-//   | func { $1 }
-
-cbody : 
-  cattrs { $1 }
-| cfuncs { $1 }
-| cattrs cfuncs { $1 @ $2 }
 
 expopt : 
   { None }
@@ -180,11 +160,12 @@ unaryexp :
 atomicexp :
   INT { (Int $1, rhs 1) }
 | ID { (Var $1, rhs 1) }
-| funccall{ ($1, rhs 1) }
-| yexp DOT ID LPAREN RPAREN { (Invoke($1, $3, []), rhs 1) } // TODO: check if yexp is enough
-| yexp DOT ID LPAREN explist RPAREN { (Invoke($1,$3, $5), rhs 1) }
-| LPAREN yexp RPAREN { $2 }
+// TODO: Code below causes RR conflict
+// | funccall{ ($1, rhs 1) }
+// | yexp DOT ID LPAREN RPAREN { (Invoke($1, $3, []), rhs 1) } // TODO: check if yexp is enough
+// | yexp DOT ID LPAREN explist RPAREN { (Invoke($1,$3, $5), rhs 1) }
+// | LPAREN yexp RPAREN { $2 }
 
-funccall:
-| ID LPAREN RPAREN { Call($1, []) }
-| ID LPAREN explist RPAREN { Call($1, $3) }
+// funccall:
+// | ID LPAREN RPAREN { Call($1, []) }
+// | ID LPAREN explist RPAREN { Call($1, $3) }

@@ -34,4 +34,4 @@ cppish: mips
 
 
 clean:
-	-rm *.cmo *.cmi c_compiler cpp_compiler cish_parse.ml cish_parse.mli cish_lex.ml
+	-rm *.cmo *.cmi c_compiler cpp_compiler cish_parse.ml cish_parse.mli cppish_parse.ml cppish_parse.mli cish_lex.ml cppish_lex.ml 
