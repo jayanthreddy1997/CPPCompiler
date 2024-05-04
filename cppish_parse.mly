@@ -33,6 +33,7 @@ let parse_error s =
 %type <Cppish_ast.exp> mulexp
 %type <Cppish_ast.exp> unaryexp
 %type <Cppish_ast.exp> atomicexp
+%type <Cppish_ast.rexp> funccall
 %type <Cppish_ast.exp option> expopt
 
 /* terminals */
@@ -40,7 +41,7 @@ let parse_error s =
 %token EQEQ NEQ LTE GTE LT GT EQ BANG 
 %token PLUS MINUS TIMES DIV AND OR
 %token RETURN IF ELSE WHILE FOR
-%token LET COMMA CLASS UNIQUE_PTR SHARED_PTR NEW DOT NIL
+%token LET COMMA CLASS UNIQUE_PTR SHARED_PTR NEW DOT NIL MALLOC
 %token <int> INT 
 %token <string> ID
 %token <string> ID2
@@ -113,7 +114,7 @@ yexp:
 | SHARED_PTR LT ID GT ID LPAREN ID RPAREN { (SharedPtr($3, $5, (Var($7), rhs 1)), rhs 1)} // p = shared_ptr<class_name>(y)
 | SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { (SharedPtr($3, $5, $7), rhs 1)}
 
-newobj:
+newobj: // TODO: define this as a nonterminal?
   NEW ID LPAREN explist RPAREN {(New($2, $4), rhs 1)}
 | NIL {(Nil, rhs 1)}
 
@@ -160,12 +161,14 @@ unaryexp :
 atomicexp :
   INT { (Int $1, rhs 1) }
 | ID { (Var $1, rhs 1) }
+| funccall{ ($1, rhs 1) }
+| MALLOC LPAREN yexp RPAREN { (Malloc($3), rhs 1) }
+| LPAREN yexp RPAREN { $2 }
 // TODO: Code below causes RR conflict
-// | funccall{ ($1, rhs 1) }
 // | yexp DOT ID LPAREN RPAREN { (Invoke($1, $3, []), rhs 1) } // TODO: check if yexp is enough
 // | yexp DOT ID LPAREN explist RPAREN { (Invoke($1,$3, $5), rhs 1) }
 // | LPAREN yexp RPAREN { $2 }
 
-// funccall:
-// | ID LPAREN RPAREN { Call($1, []) }
-// | ID LPAREN explist RPAREN { Call($1, $3) }
+funccall:
+| ID LPAREN RPAREN { Call($1, []) }
+| ID LPAREN explist RPAREN { Call($1, $3) }

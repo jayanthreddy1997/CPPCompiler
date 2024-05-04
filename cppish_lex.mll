@@ -57,6 +57,7 @@ rule lexer = parse
 | "shared_ptr" { SHARED_PTR }
 | "new" { NEW }
 | "nullptr" {NIL}
+| "malloc" {MALLOC}
 | id { ID(Lexing.lexeme lexbuf) }
 | digit+ { INT(int_of_string(Lexing.lexeme lexbuf)) } 
 | "/*" { comment lexbuf } (* comment start *)
