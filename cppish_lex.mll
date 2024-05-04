@@ -56,6 +56,7 @@ rule lexer = parse
 | "unique_ptr" { UNIQUE_PTR }
 | "shared_ptr" { SHARED_PTR }
 | "new" { NEW }
+| "nullptr" {NIL}
 | id { ID(Lexing.lexeme lexbuf) }
 | digit+ { INT(int_of_string(Lexing.lexeme lexbuf)) } 
 | "/*" { comment lexbuf } (* comment start *)

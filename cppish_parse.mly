@@ -1,5 +1,5 @@
 %{
-open Ast
+open Cppish_ast
 open Lexing
 (* use this to get the line number for the n'th token *)
 let rhs n =
@@ -14,30 +14,32 @@ let parse_error s =
 %start program
 
 /* nonterminals */
-%type <Ast.program> program
-%type <Ast.func> func
-%type <Ast.var list> idlist
-%type <Ast.var list> formals
-%type <Ast.stmt> stmt
-%type <Ast.stmt> stmtlist
-%type <Ast.exp> yexp
-%type <Ast.exp list> explist
-%type <Ast.exp> orexp
-%type <Ast.exp> andexp
-%type <Ast.exp> equalexp
-%type <Ast.exp> relnexp
-%type <Ast.exp> addexp
-%type <Ast.exp> mulexp
-%type <Ast.exp> unaryexp
-%type <Ast.exp> atomicexp
-%type <Ast.exp option> expopt
+%type <Cppish_ast.program> program
+%type <Cppish_ast.func> func
+%type <Cppish_ast.func_klass> func_klass
+// %type <Cppish_ast.klass> klass
+%type <Cppish_ast.var list> idlist
+%type <Cppish_ast.var list> formals
+%type <Cppish_ast.stmt> stmt
+%type <Cppish_ast.stmt> stmtlist
+%type <Cppish_ast.exp> yexp
+%type <Cppish_ast.exp list> explist
+%type <Cppish_ast.exp> orexp
+%type <Cppish_ast.exp> andexp
+%type <Cppish_ast.exp> equalexp
+%type <Cppish_ast.exp> relnexp
+%type <Cppish_ast.exp> addexp
+%type <Cppish_ast.exp> mulexp
+%type <Cppish_ast.exp> unaryexp
+%type <Cppish_ast.exp> atomicexp
+%type <Cppish_ast.exp option> expopt
 
 /* terminals */
 %token SEMI LPAREN RPAREN LBRACE RBRACE
 %token EQEQ NEQ LTE GTE LT GT EQ BANG 
 %token PLUS MINUS TIMES DIV AND OR
 %token RETURN IF ELSE WHILE FOR
-%token LET COMMA CLASS UNIQUE_PTR SHARED_PTR NEW DOT
+%token LET COMMA CLASS UNIQUE_PTR SHARED_PTR NEW DOT NIL
 %token <int> INT 
 %token <string> ID 
 %token EOF
@@ -45,15 +47,23 @@ let parse_error s =
 /* Start grammer rules*/
 %%
 
+// program:
+//   func { [$1] }
+// | func program { $1::$2 }
+// | klass { [$1] }
+// | klass program { $1::$2 }
 program:
-  func { [$1] }
-| func program { $1::$2 }
-| class program { $1::$2 }
+  func_klass { [$1] }
+| func_klass program { $1::$2 }
+
+func_klass:
+  func { $1 }
+  | klass { $1 }
 
 func :
   ID formals LBRACE stmtlist RBRACE { Fn{name=$1;args=$2;body=$4;pos=rhs 1} }
 
-class :
+klass :
   CLASS ID LBRACE cbody RBRACE { Class{cname=$2;cbody=$4} }
 
 formals :
@@ -90,7 +100,7 @@ cstmt :
 
 cbody : 
     cstmt { [$1] }
-  | cstmt cstmtlist { $1::$2 }
+  | cstmt cbody { $1::$2 }
 
 expopt : 
   { None }
@@ -99,10 +109,17 @@ expopt :
 yexp:
   orexp { $1 }
 | ID EQ yexp { (Assign($1,$3), rhs 1) }
-| ID TIMES ID EQ NEW  {}
+| ID TIMES ID EQ newobj{ Ptr($1, $3, $5)} // class_name *p = new class_name();
+| TIMES yexp EQ NEW ID formals{ Ptr($5, $2, (New($5, $6), rhs 1))}  // *p = new class_name();
+| TIMES addexp EQ yexp{ Store($2, $4)} //TODO: Revisit this.  // *(p+4) = e
+| TIMES addexp { Load($2)} //TODO: Revisit this.  // *(p+4)
+| UNIQUE_PTR LT ID GT ID LPAREN newobj RPAREN { UniquePtr($3, $5)} 
+| SHARED_PTR LT ID GT ID LPAREN ID RPAREN{ SharedPtr($3, $5)}
+| SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { SharedPtr($3, $5)}
 
 newobj:
-  NEW ID formals 
+  NEW ID formals{(New($2, $3), rhs 1)}
+| NIL {(Nil, rhs 1)}
 
 explist :
   yexp { [$1] }
@@ -149,4 +166,6 @@ atomicexp :
 | ID { (Var $1, rhs 1) }
 | ID LPAREN RPAREN { (Call($1,[]), rhs 1) }
 | ID LPAREN explist RPAREN { (Call($1,$3), rhs 1) }
+| ID DOT ID LPAREN RPAREN { (Invoke($1, $3, []), rhs 1) }
+| ID DOT ID LPAREN explist RPAREN { (Invoke($1,$3, $5), rhs 1) }
 | LPAREN yexp RPAREN { $2 }

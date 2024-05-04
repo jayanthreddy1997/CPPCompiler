@@ -10,9 +10,9 @@ type binop =
 type rexp = 
   Int of int
 | Var of var
-| Ptr of class_name * var             (* Calculator *x *)
-| UniqPtr of class_name * var         (* unique_ptr<ClassName> ptrName *)
-| SmrtPtr of class_name * var         (* shared_ptr<ClassName> ptrName *)
+| Ptr of class_name * var * exp             (* Calculator *x *)
+| UniquePtr of class_name * var * exp       (* unique_ptr<ClassName> ptrName *)
+| SharedPtr of class_name * var * exp       (* shared_ptr<ClassName> ptrName *)
 | Binop of exp * binop * exp
 | Not of exp                          (* !x *)
 | And of exp * exp                    (* x < y && y < z *)
@@ -22,6 +22,9 @@ type rexp =
 | Nil
 | New of class_name * (exp list)      (* new Calculator(arg1, arg2) *)
 | Invoke of exp * var * (exp list)    (* obj.method_name(arg1, arg2) and *)
+| Load of exp                         (* *(x+3) *)
+| Store of exp * exp                  (* *(x+3) = e *)
+| Malloc of exp                       (* malloc(i) *)
   (* every expression comes with its position *)
 and exp = rexp * pos
 
@@ -45,9 +48,14 @@ type classsig = {
   cname: class_name;
   cbody: func list
 }
+
 type klass = Class of classsig
 
 let skip : rstmt = Exp(Int 0,0)          (* simulate a skip statement *)
 
-type program = func list
+type func_klass = 
+  | Fn1 of func 
+  | Cl1 of klass
+
+type program = func_klass list
 
