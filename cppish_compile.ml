@@ -16,7 +16,7 @@ let print_string_list_map (map : string_list_map) : unit =
 (* Add a value to the map *)
 let add_to_map (map : string_list_map) (key : string) (value : string) : unit =
   match Hashtbl.find_opt map key with
-  | Some ls -> Hashtbl.replace map key (value :: ls)
+  | Some ls -> Hashtbl.replace map key (ls @ [value])
   | None -> Hashtbl.add map key [value]
 
 (* Check if a key-value pair exists in the map *)
@@ -164,8 +164,6 @@ let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
         add_to_map class_variable_map classname var
       ) variables;
       
-      let _ = print_string_list_map class_method_map in
-      let _x = print_string_list_map class_variable_map in
       (* Convert methods to Cish_ast functions *)
       List.map (fun m ->
         match m with
