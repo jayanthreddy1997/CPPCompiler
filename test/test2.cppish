@@ -1,1 +1,4 @@
-Calculator* obj = new Calculator();
+
+main() {
+  return 1*2;
+}

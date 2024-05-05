@@ -1,3 +1,8 @@
+class Calculator {
+  add(x, y){
+    return x+y;
+  }
+};
 
 main() {
   Calculator* obj = new Calculator();

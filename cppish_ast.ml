@@ -69,6 +69,7 @@ type program = func_klass list
 (***************************************************************)
 (* functions for printing out Cppish syntax                    *)
 (***************************************************************)
+exception AstPrintException
 
 (* Helper function to convert a binary operator to its string representation *)
 let string_of_binop op =
@@ -88,12 +89,23 @@ let string_of_binop op =
 let string_of_var_list vars =
   String.concat ", " vars
 
+let rec string_of_newobj ((expr,_) : exp) : string =
+  match expr with 
+  | Nil -> "nullptr"
+  | New (cn, el) -> "new " ^ cn ^ "(" ^ (string_of_explist el) ^ ")"
+  | _ -> raise AstPrintException
+and string_of_explist (es: exp list): string =
+  match es with 
+  | [] -> ""
+  | e::rem_es -> (string_of_exp e) ^ ", " ^ (string_of_explist rem_es)
+  
+
 (* Convert an expression (rexp) to a string *)
-let rec string_of_exp ((expr,_) : exp) : string =
+and  string_of_exp ((expr,_) : exp) : string =
   match expr with
   | Int n -> string_of_int n
   | Var v -> v
-  | Ptr (cname, v, e) -> cname ^ " *" ^ v
+  | Ptr (cname, v, e) ->  cname ^ " [PTR]*" ^ v ^ " = " ^ (string_of_newobj e)
   | UniquePtr (cname, v, e) -> "unique_ptr<" ^ cname ^ "> " ^ v
   | SharedPtr (cname, v, e) -> "shared_ptr<" ^ cname ^ "> " ^ v
   | Binop (e1, op, e2) ->
@@ -114,7 +126,7 @@ let rec string_of_exp ((expr,_) : exp) : string =
   | Malloc e -> "malloc(" ^ string_of_exp e ^ ")"
 
 (* Convert a statement (rstmt) to a string *)
-let rec string_of_rstmt (stmt : rstmt) : string =
+and string_of_rstmt (stmt : rstmt) : string =
   match stmt with
   | Exp (e) -> string_of_exp e ^ ";"
   | Seq (s1, s2) -> string_of_rstmt (fst s1) ^ " " ^ string_of_rstmt (fst s2)
@@ -146,7 +158,7 @@ let string_of_classsig (cs : classsig) : string =
   else "") ^
   (* Convert class methods *)
   (String.concat "\n\n" (List.map string_of_func cs.cmethods)) ^
-  "\n}"
+  "\n};"
 
 (* Convert a class (klass) to a string *)
 let string_of_klass (k : klass) : string =
