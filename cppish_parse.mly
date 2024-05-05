@@ -106,6 +106,7 @@ stmt :
       (For(e1,e2,e3,$9), rhs 1)
     }
 | LET ID EQ yexp SEMI stmt { (Let($2,$4,$6), rhs 1) }
+| LET ID ID EQ newobj SEMI stmt { (Let($3, (Ptr($2, $3, $5), rhs 1), $7), rhs 1) }
 
 stmtlist :
   stmt { $1 }
@@ -118,7 +119,7 @@ expopt :
 yexp:
   orexp { $1 }
 | ID EQ yexp { (Assign($1,$3), rhs 1) }
-| ID TIMES ID EQ newobj{ (Ptr($1, $3, $5), rhs 1) } // class_name *p = new class_name();
+// | ID TIMES ID EQ newobj{ (Ptr($1, $3, $5), rhs 1) } // class_name *p = new class_name();
 | TIMES yexp EQ newobj { (Store($2, $4), rhs 1)}  // *(p + y) = new class_name();
 | TIMES addexp EQ yexp{ (Store($2, $4), rhs 1)} //TODO: Revisit this.  // *(p+4) = e
 | TIMES addexp { (Load($2), rhs 1)} //TODO: Revisit this.  // *(p+4)

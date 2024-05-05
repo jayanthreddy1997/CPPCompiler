@@ -29,7 +29,7 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
     | Cppish_ast.Binop (e1, op, e2) ->
         let cish_e1 = compile_exp e1 in
         let cish_e2 = compile_exp e2 in
-        let cish_op = 
+        let cish_op = (
           match op with
           | Cppish_ast.Plus -> Cish_ast.Plus
           | Cppish_ast.Minus -> Cish_ast.Minus
@@ -40,7 +40,7 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
           | Cppish_ast.Lt -> Cish_ast.Lt
           | Cppish_ast.Lte -> Cish_ast.Lte
           | Cppish_ast.Gt -> Cish_ast.Gt
-          | Cppish_ast.Gte -> Cish_ast.Gte
+          | Cppish_ast.Gte -> Cish_ast.Gte)
         in
         Cish_ast.Binop (cish_e1, cish_op, cish_e2)
     | Cppish_ast.Not e ->
@@ -134,7 +134,7 @@ let rec compile_function (cpp_func : Cppish_ast.func) : Cish_ast.func =
       } in
     Cish_ast.Fn cish_funcsig
 
-let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
+(* let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
   match klass with
   | Cppish_ast.Klass cpp_classsig ->
       let classname = cpp_classsig.cname in
@@ -158,7 +158,7 @@ let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
             let new_func_name = classname ^ "_" ^ cpp_funcsig.name in
             let updated_cpp_funcsig = { cpp_funcsig with name = new_func_name } in
             compile_function (Cppish_ast.Fn updated_cpp_funcsig )
-      ) methods
+      ) methods *)
 
 let rec compile_cppish (p: Cppish_ast.program) : Cish_ast.program = 
   let _x = string_of_program p in
@@ -167,5 +167,5 @@ let rec compile_cppish (p: Cppish_ast.program) : Cish_ast.program =
   | fk::rem -> (
     match fk with
     | Fn f -> compile_function f
-    | Klass k -> compile_class k
+    (* | Klass k -> compile_class k *)
   ) :: (compile_cppish rem)
