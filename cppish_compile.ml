@@ -3,7 +3,7 @@ open Cish_ast
 exception NotImplemented
 
 type string_list_map = (string, string list) Hashtbl.t
-
+let ref_count_attr: string = "__refcount__"
 (* Create a new string list map *)
 let class_method_map : string_list_map = Hashtbl.create 10
 let class_variable_map: string_list_map = Hashtbl.create 10
@@ -140,16 +140,17 @@ let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
       let classname = cpp_classsig.cname in
       let methods = cpp_classsig.cmethods in
       let variables = cpp_classsig.cvars in
-
+      add_to_map class_variable_map classname ref_count_attr;
       (* Add class methods to the global method map *)
-      (* List.iter (fun (Fn funcsig) ->
-          add_to_map class_method_map classname funcsig.name
+      List.iter (fun (f) ->
+        match f with
+        | Cppish_ast.Fn fs -> add_to_map class_method_map classname fs.name
       ) methods;
 
       (* Add class variables to the global variable map *)
       List.iter (fun var ->
         add_to_map class_variable_map classname var
-      ) variables; *)
+      ) variables;
       
       (* Convert methods to Cish_ast functions *)
       List.map (fun m ->
@@ -166,6 +167,6 @@ let rec compile_cppish (p: Cppish_ast.program) : Cish_ast.program =
   | [] -> []
   | fk::rem -> (
     match fk with
-    | Fn f -> compile_function f
-    | Klass k -> compile_class k
-  ) :: (compile_cppish rem)
+    | Fn2 f -> (compile_function f) :: (compile_cppish rem) 
+    | Klass k -> (compile_class k) @ (compile_cppish rem)
+  ) 

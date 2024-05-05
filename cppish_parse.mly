@@ -68,7 +68,7 @@ program:
 
 func_klass:
     klass SEMI { Klass $1 }
-  | func { Fn $1 }
+  | func { Fn2 $1 }
   
 
 klass:
