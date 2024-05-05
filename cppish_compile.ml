@@ -25,6 +25,8 @@ let is_exist_in_map (map : string_list_map) (key : string) (value : string) : bo
   | Some ls -> List.mem value ls
   | None -> false
 
+
+
 (* Convert the function from Cppish_exp to Cish_exp *)
 let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
   let cish_exp =
@@ -77,7 +79,7 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
         let cish_e = compile_exp e in
         Cish_ast.Malloc cish_e
     (* TODO:  Compilation of Cppish Pointers to Cish Pointers *)
-    | Cppish_ast.Ptr (cname, v, e) -> raise NotImplemented
+    | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e)
     | Cppish_ast.UniquePtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.Nil -> raise NotImplemented

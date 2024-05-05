@@ -1,6 +1,6 @@
 class Calculator {
-  add(x, y){
-    return x+y;
+  add(this, x, y){
+    return this.x + this.y;
   }
 };
 
