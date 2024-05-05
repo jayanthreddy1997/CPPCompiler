@@ -1,5 +1,5 @@
 %{
-open Ast
+open Cppish_ast
 open Lexing
 (* use this to get the line number for the n'th token *)
 let rhs n =
@@ -14,47 +14,74 @@ let parse_error s =
 %start program
 
 /* nonterminals */
-%type <Ast.program> program
-%type <Ast.func> func
-%type <Ast.var list> idlist
-%type <Ast.var list> formals
-%type <Ast.stmt> stmt
-%type <Ast.stmt> stmtlist
-%type <Ast.exp> yexp
-%type <Ast.exp list> explist
-%type <Ast.exp> orexp
-%type <Ast.exp> andexp
-%type <Ast.exp> equalexp
-%type <Ast.exp> relnexp
-%type <Ast.exp> addexp
-%type <Ast.exp> mulexp
-%type <Ast.exp> unaryexp
-%type <Ast.exp> atomicexp
-%type <Ast.exp option> expopt
+%type <Cppish_ast.program> program
+%type <Cppish_ast.class_member> class_member
+%type <Cppish_ast.klass> klass
+%type <Cppish_ast.func_klass> func_klass
+%type <Cppish_ast.func> func
+%type <Cppish_ast.var list> idlist
+%type <Cppish_ast.var list> formals
+%type <Cppish_ast.stmt> stmt
+%type <Cppish_ast.stmt> stmtlist
+%type <Cppish_ast.exp> yexp
+%type <Cppish_ast.exp list> explist
+%type <Cppish_ast.exp> orexp
+%type <Cppish_ast.exp> andexp
+%type <Cppish_ast.exp> equalexp
+%type <Cppish_ast.exp> relnexp
+%type <Cppish_ast.exp> addexp
+%type <Cppish_ast.exp> mulexp
+%type <Cppish_ast.exp> unaryexp
+%type <Cppish_ast.exp> atomicexp
+%type <Cppish_ast.rexp> funccall
+%type <Cppish_ast.exp> newobj
+%type <Cppish_ast.exp option> expopt
 
 /* terminals */
 %token SEMI LPAREN RPAREN LBRACE RBRACE
 %token EQEQ NEQ LTE GTE LT GT EQ BANG 
 %token PLUS MINUS TIMES DIV AND OR
 %token RETURN IF ELSE WHILE FOR
-%token LET COMMA CLASS UNIQUE_PTR SHARED_PTR NEW DOT
+%token LET COMMA CLASS UNIQUE_PTR SHARED_PTR NEW DOT NIL MALLOC
 %token <int> INT 
-%token <string> ID 
+%token <string> ID
+%token <string> ID2
 %token EOF
+
+%left COMMA
+%left OR
+%left AND
+%left LTE GTE LT GT
+%left EQEQ NEQ
+%left PLUS MINUS
+%left TIMES DIV // TODO: we are missing % operator
+%left BANG
+%left DOT
+%left LPAREN RPAREN
 
 /* Start grammer rules*/
 %%
 
 program:
-  func { [$1] }
-| func program { $1::$2 }
-| class program { $1::$2 }
+  | func_klass { [$1] }
+  | func_klass program { $1 :: $2 }
+
+func_klass:
+    klass SEMI { Klass $1 }
+  | func { Fn $1 }
+  
+
+klass:
+  CLASS ID LBRACE class_member RBRACE { Klass{cname=$2;cvars=$4.cvars;cmethods=$4.cmethods} }
+
+// TODO: need to define class_member and few others as a nonterminal
+class_member:
+    ID SEMI class_member { {cvars=$1 :: $3.cvars; cmethods=$3.cmethods} }
+  | func class_member { {cvars=$2.cvars; cmethods=$1 :: $2.cmethods} }
+  | /* empty */ { {cvars=[]; cmethods=[]} }
 
 func :
   ID formals LBRACE stmtlist RBRACE { Fn{name=$1;args=$2;body=$4;pos=rhs 1} }
-
-class :
-  CLASS ID LBRACE cbody RBRACE { Class{cname=$2;cbody=$4} }
 
 formals :
   LPAREN RPAREN { [] }
@@ -84,14 +111,6 @@ stmtlist :
   stmt { $1 }
 | stmt stmtlist { (Seq($1,$2), rhs 1) }
 
-cstmt :
-    yexp { Fn{name="__vars__";args=[];body=(Exp $1, rhs 1);pos=rhs 1} } 
-  | func { $1 }
-
-cbody : 
-    cstmt { [$1] }
-  | cstmt cstmtlist { $1::$2 }
-
 expopt : 
   { None }
   | yexp { Some $1 }
@@ -99,10 +118,18 @@ expopt :
 yexp:
   orexp { $1 }
 | ID EQ yexp { (Assign($1,$3), rhs 1) }
-| ID TIMES ID EQ NEW  {}
+| ID TIMES ID EQ newobj{ (Ptr($1, $3, $5), rhs 1) } // class_name *p = new class_name();
+| TIMES yexp EQ newobj { (Store($2, $4), rhs 1)}  // *(p + y) = new class_name();
+| TIMES addexp EQ yexp{ (Store($2, $4), rhs 1)} //TODO: Revisit this.  // *(p+4) = e
+| TIMES addexp { (Load($2), rhs 1)} //TODO: Revisit this.  // *(p+4)
+| UNIQUE_PTR LT ID GT ID LPAREN newobj RPAREN { (UniquePtr($3, $5, $7), rhs 1)} 
+| SHARED_PTR LT ID GT ID LPAREN ID RPAREN { (SharedPtr($3, $5, (Var($7), rhs 1)), rhs 1)} // p = shared_ptr<class_name>(y)
+| SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { (SharedPtr($3, $5, $7), rhs 1)}
 
 newobj:
-  NEW ID formals 
+| NEW ID LPAREN RPAREN {(New($2, []), rhs 1)}
+| NEW ID LPAREN explist RPAREN {(New($2, $4), rhs 1)}
+| NIL {(Nil, rhs 1)}
 
 explist :
   yexp { [$1] }
@@ -147,6 +174,13 @@ unaryexp :
 atomicexp :
   INT { (Int $1, rhs 1) }
 | ID { (Var $1, rhs 1) }
-| ID LPAREN RPAREN { (Call($1,[]), rhs 1) }
-| ID LPAREN explist RPAREN { (Call($1,$3), rhs 1) }
+| funccall{ ($1, rhs 1) }
+| MALLOC LPAREN yexp RPAREN { (Malloc($3), rhs 1) }
 | LPAREN yexp RPAREN { $2 }
+| ID DOT ID LPAREN RPAREN { (Invoke((Var($1), rhs 1), $3, []), rhs 1) } // TODO: check if yexp is enough
+| ID DOT ID LPAREN explist RPAREN { (Invoke((Var($1), rhs 1), $3, $5), rhs 1) } 
+| LPAREN yexp RPAREN DOT ID LPAREN explist RPAREN { (Invoke($2, $5, $7), rhs 1) }
+
+funccall:
+| ID LPAREN RPAREN { Call($1, []) }
+| ID LPAREN explist RPAREN { Call($1, $3) }
