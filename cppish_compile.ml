@@ -2,6 +2,24 @@ open Cppish_ast
 open Cish_ast
 exception NotImplemented
 
+type string_list_map = (string, string list) Hashtbl.t
+
+(* Create a new string list map *)
+let class_method_map : string_list_map = Hashtbl.create 10
+let class_variable_map: string_list_map = Hashtbl.create 10
+
+(* Add a value to the map *)
+let add_to_map (map : string_list_map) (key : string) (value : string) : unit =
+  match Hashtbl.find_opt map key with
+  | Some ls -> Hashtbl.replace map key (value :: ls)
+  | None -> Hashtbl.add map key [value]
+
+(* Check if a key-value pair exists in the map *)
+let is_exist_in_map (map : string_list_map) (key : string) (value : string) : bool =
+  match Hashtbl.find_opt map key with
+  | Some ls -> List.mem value ls
+  | None -> false
+
 (* Convert the function from Cppish_exp to Cish_exp *)
 let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
   let cish_exp =
@@ -63,6 +81,7 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
   in
   (cish_exp, pos)
 
+  (* Convert the function from Cppish_stmt to Cish_stmt *)
   let rec compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) : Cish_ast.stmt =
     let cish_stmt =
       match cpp_stmt with
@@ -115,11 +134,38 @@ let rec compile_function (cpp_func : Cppish_ast.func) : Cish_ast.func =
       } in
     Cish_ast.Fn cish_funcsig
 
+let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
+  match klass with
+  | Cppish_ast.Klass cpp_classsig ->
+      let classname = cpp_classsig.cname in
+      let methods = cpp_classsig.cmethods in
+      let variables = cpp_classsig.cvars in
+
+      (* Add class methods to the global method map *)
+      (* List.iter (fun (Fn funcsig) ->
+          add_to_map class_method_map classname funcsig.name
+      ) methods;
+
+      (* Add class variables to the global variable map *)
+      List.iter (fun var ->
+        add_to_map class_variable_map classname var
+      ) variables; *)
+      
+      (* Convert methods to Cish_ast functions *)
+      List.map (fun m ->
+        match m with
+          | Cppish_ast.Fn cpp_funcsig ->
+            let new_func_name = classname ^ "_" ^ cpp_funcsig.name in
+            let updated_cpp_funcsig = { cpp_funcsig with name = new_func_name } in
+            compile_function (Cppish_ast.Fn updated_cpp_funcsig )
+      ) methods
+
 let rec compile_cppish (p: Cppish_ast.program) : Cish_ast.program = 
+  let _x = string_of_program p in
   match p with 
   | [] -> []
   | fk::rem -> (
     match fk with
     | Fn f -> compile_function f
-    | Klass k -> raise NotImplemented
+    | Klass k -> compile_class k
   ) :: (compile_cppish rem)
