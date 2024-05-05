@@ -29,9 +29,10 @@ cppish: mips
 	${COMPILER} -c cppish_parse.ml
 	ocamllex cppish_lex.mll
 	$(COMPILER) -c cppish_lex.ml
+	$(COMPILER) -c cppish_compile.ml
 	$(COMPILER) -c cppish_eval.ml
 	$(COMPILER) -c cppish.ml
-	${COMPILER} -o cpp_compiler cppish_ast.cmo cish_ast.cmo cppish_eval.cmo cppish_parse.cmo cish_parse.cmo cppish_lex.cmo cish_lex.cmo cish_eval.cmo word32.cmo mips.cmo cish_compile.cmo cppish.cmo
+	${COMPILER} -o cpp_compiler cppish_ast.cmo cish_ast.cmo cppish_parse.cmo cish_parse.cmo cppish_lex.cmo cish_lex.cmo cish_eval.cmo word32.cmo mips.cmo cish_compile.cmo cppish_compile.cmo cppish_eval.cmo cppish.cmo
 
 
 clean:
