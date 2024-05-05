@@ -19,8 +19,7 @@ let parse_stdin() =
 (* Reads in cish code and evaluates it *)
 let _ =
   let prog = parse_stdin() in
-  print_endline "converting program to string";
-  let s = string_of_program(prog) in
-  print_string (s)
-  (* let ans = eval prog in
-  print_string ("answer1 = "^(string_of_int ans)^"\n") *)
+  (* let s = Cppish_ast.string_of_program(prog) in
+  print_endline (s); *)
+  let ans = eval prog in
+  print_string ("answer = "^(Cish_eval.val2string ans)^"\n")

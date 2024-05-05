@@ -36,3 +36,4 @@ c_compiler
 cppish_parse.ml
 cppish_parse.mli
 cppish_lex.ml
+output/

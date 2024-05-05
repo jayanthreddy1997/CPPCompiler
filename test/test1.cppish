@@ -5,7 +5,7 @@ class Calculator {
 };
 
 main() {
-  Calculator* obj = new Calculator();
+  let Calculator obj = new Calculator();
   let x = obj.add(10, 5);
   return x;
 }
