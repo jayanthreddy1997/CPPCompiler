@@ -22,6 +22,8 @@ type rexp =
 | Nil
 | New of class_name * (exp list)      (* new Calculator(arg1, arg2) *)
 | Invoke of exp * var * (exp list)    (* obj.method_name(arg1, arg2) and *)
+| AttrAccess of exp * var             (* obj.x *)
+| AttrUpdate of exp * var * exp       (* obj.x = 5 *)
 | Load of exp                         (* *(x+3) *)
 | Store of exp * exp                  (* *(x+3) = e *)
 | Malloc of exp                       (* malloc(i) *)
@@ -121,6 +123,8 @@ and  string_of_exp ((expr,_) : exp) : string =
       "new " ^ cname ^ "(" ^ String.concat ", " (List.map string_of_exp args) ^ ")"
   | Invoke (obj, method_name, args) ->
     string_of_exp obj ^ "." ^ method_name ^ "(" ^ String.concat ", " (List.map string_of_exp args) ^ ")"
+  | AttrAccess (e, v) -> (string_of_exp e) ^ "." ^ v
+  | AttrUpdate (e1, v, e2) -> (string_of_exp e1) ^ "." ^ v ^ " = " ^ (string_of_exp e2)  
   | Load e -> "*(" ^ string_of_exp e ^ ")"
   | Store (e1, e2) -> "*(" ^ string_of_exp e1 ^ ") = " ^ string_of_exp e2
   | Malloc e -> "malloc(" ^ string_of_exp e ^ ")"

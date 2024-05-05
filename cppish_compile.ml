@@ -83,6 +83,8 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
     | Cppish_ast.Nil -> raise NotImplemented
     | Cppish_ast.New (cname, exp_list) -> raise NotImplemented
     | Cppish_ast.Invoke (e, v, exp_list) -> raise NotImplemented
+    | Cppish_ast.AttrAccess (e, v) -> raise NotImplemented
+    | Cppish_ast.AttrUpdate (e1, v, e2) -> raise NotImplemented
   in
   (cish_exp, pos)
 
