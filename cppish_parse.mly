@@ -34,6 +34,7 @@ let parse_error s =
 %type <Cppish_ast.exp> unaryexp
 %type <Cppish_ast.exp> atomicexp
 %type <Cppish_ast.rexp> funccall
+%type <Cppish_ast.exp> newobj
 %type <Cppish_ast.exp option> expopt
 
 /* terminals */
@@ -125,8 +126,9 @@ yexp:
 | SHARED_PTR LT ID GT ID LPAREN ID RPAREN { (SharedPtr($3, $5, (Var($7), rhs 1)), rhs 1)} // p = shared_ptr<class_name>(y)
 | SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { (SharedPtr($3, $5, $7), rhs 1)}
 
-newobj: // TODO: define this as a nonterminal?
-  NEW ID LPAREN explist RPAREN {(New($2, $4), rhs 1)}
+newobj:
+| NEW ID LPAREN RPAREN {(New($2, []), rhs 1)}
+| NEW ID LPAREN explist RPAREN {(New($2, $4), rhs 1)}
 | NIL {(Nil, rhs 1)}
 
 explist :

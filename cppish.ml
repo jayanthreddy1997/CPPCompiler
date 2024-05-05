@@ -1,6 +1,5 @@
-open Cish_ast
-open Cish_eval
 open Cppish_ast
+open Cppish_eval
 
 (* This magic is used to glue the generated lexer and parser together.
  * Expect one command-line argument, a file to parse.
@@ -12,19 +11,16 @@ let parse_file() =
     then (prerr_string ("usage: " ^ argv.(0) ^ " [file-to-parse]\n");
     exit 1) in
   let ch = open_in argv.(1) in
-  Cish_parse.program Cish_lex.lexer (Lexing.from_channel ch)
+  Cppish_parse.program Cppish_lex.lexer (Lexing.from_channel ch)
 
 let parse_stdin() = 
-  Cish_parse.program Cish_lex.lexer (Lexing.from_channel stdin)
-
-let compile_prog prog =
-  Cish_compile.result2string (Cish_compile.compile prog )
+  Cppish_parse.program Cppish_lex.lexer (Lexing.from_channel stdin)
 
 (* Reads in cish code and evaluates it *)
 let _ =
   let prog = parse_stdin() in
-  (* let s = program_to_string(prog) in *)
-  (* print_string (s) *)
-  let ans = eval prog in
-  print_string ("answer = "^(val2string ans)^"\n")
-  (* print_string (compile_prog prog) *)
+  print_endline "converting program to string";
+  let s = string_of_program(prog) in
+  print_string (s)
+  (* let ans = eval prog in
+  print_string ("answer1 = "^(string_of_int ans)^"\n") *)
