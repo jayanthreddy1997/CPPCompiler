@@ -60,7 +60,7 @@ type klass = Klass of classsig
 let skip : rstmt = Exp(Int 0,0)          (* simulate a skip statement *)
 
 type func_klass = 
-  | Fn of func
+  | Fn2 of func
   | Klass of klass
 
 type program = func_klass list
@@ -168,7 +168,7 @@ let string_of_klass (k : klass) : string =
 (* Convert a func_klass (either func or klass) to a string *)
 let string_of_func_klass (fk : func_klass) : string =
   match fk with
-  | Fn f -> string_of_func f
+  | Fn2 f -> string_of_func f
   | Klass k -> string_of_klass k
 
 (* Convert a program (list of func_klass) to a string *)
