@@ -76,7 +76,7 @@ klass:
 
 // TODO: need to define class_member and few others as a nonterminal
 class_member:
-    ID SEMI class_member { {cvars=$1 :: $3.cvars; cmethods=$3.cmethods} }
+    LET ID SEMI class_member { {cvars=$2 :: $4.cvars; cmethods=$4.cmethods} }
   | func class_member { {cvars=$2.cvars; cmethods=$1 :: $2.cmethods} }
   | /* empty */ { {cvars=[]; cmethods=[]} }
 
