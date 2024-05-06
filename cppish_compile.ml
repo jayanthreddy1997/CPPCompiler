@@ -159,6 +159,13 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
         let cish_e = compile_exp e class_name in
         Cish_ast.Malloc cish_e
     (* TODO:  Compilation of Cppish Pointers to Cish Pointers *)
+    (*
+      unique_pointer<class_name> p (new Class_name());
+      y = p
+      shared_pointer<class_name> p (p2);
+      y = p;
+      y = y+1;
+    *)
     | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.UniquePtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
@@ -166,16 +173,16 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
     | Cppish_ast.New (cname, exp_list) -> raise (CompilerError "Unexpected call to new")
     | Cppish_ast.Invoke ((rexp, _), method_name, exp_list) ->
       let (func_name, obj_name) =
-        match rexp with
+        (match rexp with
         | Cppish_ast.Var o ->
-            match get object_class_map o with
+            (match get object_class_map o with
             | Some class_name -> 
-                match is_exist_in_map class_method_map class_name method_name with
+                (match is_exist_in_map class_method_map class_name method_name with
                 | true -> 
                   (class_name ^ "_" ^ method_name, o)
-                | false -> failwith ("unexpected error : object method is not defined")
-            | _ -> failwith ("This object '" ^ o ^ "' is not an object of any class") 
-        | _ ->  failwith ("unexpected error : object is not of type var") 
+                | false -> failwith ("unexpected error : object method is not defined"))
+            | _ -> failwith ("This object '" ^ o ^ "' is not an object of any class"))
+        | _ ->  failwith ("unexpected error : object is not of type var"))
       in
       let cish_f = (Cish_ast.Var func_name, pos) in
       let cish_args = List.map (fun e -> compile_exp e class_name) exp_list in

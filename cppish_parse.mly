@@ -111,6 +111,7 @@ stmt :
 stmtlist :
   stmt { $1 }
 | stmt stmtlist { (Seq($1,$2), rhs 1) }
+| {(skip, rhs 1)}
 
 expopt : 
   { None }
