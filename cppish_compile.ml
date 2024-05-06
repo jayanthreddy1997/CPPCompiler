@@ -248,11 +248,16 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
             match (fst pe) with
             | Cppish_ast.New (cname, exp_list) -> fst (compile_obj_creation cname exp_list s v)
             | Cppish_ast.Var e1 -> 
-              (* TODO: inc ref count *)
-              (Cish_ast.Let(
+              Cish_ast.Let(
                 v, eu(Cish_ast.Var(e1)),
-                (compile_stmt s (Some cname)))
-              )
+                su(Exp(eu(Cish_ast.Store(
+                  eu(Cish_ast.Var(e1)), 
+                  eu(Cish_ast.Binop(
+                    eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
+                    Cish_ast.Plus,
+                    eu(Int(1)))))) 
+                    )) @@ (compile_stmt s (Some cname)))
+              
             | _ -> raise (CompilerError "Let Shared_ptr failed"))
           | _ ->
             print_endline (Cppish_ast.string_of_exp e);

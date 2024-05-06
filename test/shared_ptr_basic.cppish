@@ -12,7 +12,10 @@ class Calculator {
 };
 
 main() {
-    let shared_ptr<Calculator> up = new Calculator(3, 4);
-    let shared_ptr<Calculator> y = up;
-    return y.add();
+    let a = 1; {
+        let shared_ptr<Calculator> obj2 = new Calculator(3, 4); {
+            a = a + obj2.add();
+        }
+        return a;
+    }
 }
