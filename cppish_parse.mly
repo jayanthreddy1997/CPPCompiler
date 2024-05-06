@@ -82,6 +82,7 @@ class_member:
 
 func :
   ID formals LBRACE stmtlist RBRACE { Fn{name=$1;args=$2;body=$4;pos=rhs 1} }
+  | ID formals LBRACE RBRACE { Fn{name=$1;args=$2;body=(skip, rhs 1);pos=rhs 1} }
 
 formals :
   LPAREN RPAREN { [] }
@@ -112,11 +113,10 @@ stmt :
 | LET SHARED_PTR LT ID GT ID EQ yexp SEMI stmt {(Let($6, (SharedPtr($4, $6, $8), rhs 1), $10), rhs 1)}
 // | LET SHARED_PTR LT ID GT ID EQ ID SEMI stmt {(Let($6, (SharedPtr($4, $6, (Exp (Var ($8), rhs 1), rhs 1), rhs 1), $10), rhs 1))}
 
-
 stmtlist :
   stmt { $1 }
 | stmt stmtlist { (Seq($1,$2), rhs 1) }
-| {(skip, rhs 1)}
+// | {(skip, rhs 1)}
 
 expopt : 
   { None }
