@@ -1,4 +1,13 @@
+class Calculator {
+  let x;
+  let y;
+  Calculator (this, x1, y1){
+    this.x = x1;
+    this.y = y1;
+  }
+};
 
 main() {
-  return 1*2;
+  let Calculator obj = new Calculator(2, 3);
+  return obj.y;
 }

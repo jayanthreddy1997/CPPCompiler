@@ -2,7 +2,7 @@ open Cppish_ast
 open Cish_ast
 exception NotImplemented
 exception ClassNotFoundException
-exception CompilerError
+exception CompilerError of string
 
 type string_list_map = (string, string list) Hashtbl.t
 let label_counter = ref 0
@@ -46,56 +46,66 @@ let su (x: Cish_ast.rstmt): Cish_ast.stmt = (x, 0)
 let eu (x: Cish_ast.rexp): Cish_ast.exp = (x, 0)
 
 let get_offset_within_class (e: Cppish_ast.exp) v class_name =
+  (* let _ = print_endline "*** object_class_map ***"; 
+          Hashtbl.iter (fun x y -> Printf.printf "%s -> %s\n" x y) object_class_map in *)
   (match class_name with
       | None -> (* case 2*)
         (match e with
-        | Var v, _ ->
-          let my_class_name_opt = Hashtbl.find_opt object_class_map v in (* is there a case where v is not in the map?*)
+        | Var objname, _ ->
+          print_endline objname;
+          let my_class_name_opt = Hashtbl.find_opt object_class_map objname in (* is there a case where v is not in the map?*)
           let my_class_name = (
             match my_class_name_opt with
-            | None -> raise CompilerError
+            | None -> 
+              raise (CompilerError "get_offset_within_class no class name in object_class_map")
             | Some my_class_name -> my_class_name
           ) in
+
           let attrlist = Hashtbl.find class_variable_map my_class_name in
-          let num_attrs = List.length attrlist in
-          4 * num_attrs
-        | _ -> raise CompilerError (* To access attributes, it has to be through a var, i.e, identifier*)
+          let index_of_attr_opt = List.find_index (fun a -> a = v) attrlist in
+          (match index_of_attr_opt with
+          | None -> raise (CompilerError "get_offset_within_class cant find var in class_variable_map")
+          | Some index_of_attr -> 4 * index_of_attr)
+        | _ -> raise (CompilerError "get_offset_within_class")(* To access attributes, it has to be through a var, i.e, identifier*)
         )
       | Some cname ->
         let attrlist = Hashtbl.find class_variable_map cname in
-        let num_attrs = List.length attrlist in
-        4 * num_attrs
+        let index_of_attr_opt = List.find_index (fun a -> a = v) attrlist in
+          (match index_of_attr_opt with
+          | None -> raise (CompilerError "get_offset_within_class cant find var in class_variable_map")
+          | Some index_of_attr -> 4 * index_of_attr)
       )
 
-let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list): Cish_ast.stmt =
+let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list) (stmt_scope: Cppish_ast.stmt) (objname: var): Cish_ast.stmt =
   (* malloc the space necessary for the object*)
   (* initialize refcount to 1 using the pointer returned by malloc *)
   (* compile function call for constructor with malloced pointer as the first arg *)
-  let new_temp_var = new_temp() in
-  let cish_exp_list = List.map (fun x -> (compile_exp x (Some(cname)))) exp_list in
+  let new_temp_var = objname in
+  (* Printf.printf "SIR %s" (Cppish_ast.string_of_rstmt (fst stmt_scope)); *)
+
   match Hashtbl.find_opt class_variable_map cname with
   | None -> raise ClassNotFoundException
   | Some vlist ->
-    let malloc_size = (List.length vlist) + 1 in
-    su(Cish_ast.Exp(
-      eu(Cish_ast.Assign(
+    let malloc_size = (List.length vlist) in
+    add object_class_map new_temp_var cname;
+    su(Cish_ast.Let(
           new_temp_var, 
-          eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4))))
-        )
+          eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4)))),
+          (su(Cish_ast.Exp (
+            eu(Cish_ast.Store(
+              eu(Var(new_temp_var)), eu(Int(1))
+            ))
+            )
+          ) @@ 
+          su (Cish_ast.Exp (
+            eu(Cish_ast.Call(
+              eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
+              eu(Var(new_temp_var))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
+            ))
+          )) @@ (compile_stmt stmt_scope (Some cname)))
       )
-    )) @@
-    su(Cish_ast.Exp (
-      eu(Cish_ast.Store(
-        eu(Var(new_temp_var)), eu(Int(1))
-      ))
-      )
-    ) @@ 
-    su (Cish_ast.Exp (
-      eu(Cish_ast.Call(
-        eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
-        eu(Var(new_temp_var))::cish_exp_list
-      ))
-    ))
+    )
+    
 
 (* Convert the function from Cppish_exp to Cish_exp *)
 and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish_ast.exp =
@@ -153,7 +163,7 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
     | Cppish_ast.UniquePtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.Nil -> raise NotImplemented
-    | Cppish_ast.New (cname, exp_list) -> raise CompilerError
+    | Cppish_ast.New (cname, exp_list) -> raise (CompilerError "Unexpected call to new")
     | Cppish_ast.Invoke (e, v, exp_list) -> raise NotImplemented
     | Cppish_ast.AttrAccess (e, v) -> 
       let offset = get_offset_within_class e v class_name in
@@ -176,56 +186,60 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
   (cish_rexp, pos)
 
   (* Convert the function from Cppish_stmt to Cish_stmt *)
-  let rec compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): Cish_ast.stmt =
-    let cish_stmt =
-      match cpp_stmt with
-      | Cppish_ast.Exp e ->
-          let cish_e = compile_exp e class_name in
-          Cish_ast.Exp cish_e
-      | Cppish_ast.Seq (s1, s2) ->
-          let cish_s1 = compile_stmt s1 class_name in
-          let cish_s2 = compile_stmt s2 class_name in
-          Cish_ast.Seq (cish_s1, cish_s2)
-      | Cppish_ast.If (e, s1, s2) ->
-          let cish_e = compile_exp e class_name in
-          let cish_s1 = compile_stmt s1 class_name in
-          let cish_s2 = compile_stmt s2 class_name in
-          Cish_ast.If (cish_e, cish_s1, cish_s2)
-      | Cppish_ast.While (e, s) ->
-          let cish_e = compile_exp e class_name in
-          let cish_s = compile_stmt s class_name in
-          Cish_ast.While (cish_e, cish_s)
-      | Cppish_ast.For (e1, e2, e3, s) ->
-          let cish_e1 = compile_exp e1 class_name in
-          let cish_e2 = compile_exp e2 class_name in
-          let cish_e3 = compile_exp e3 class_name in
-          let cish_s = compile_stmt s class_name in
-          Cish_ast.For (cish_e1, cish_e2, cish_e3, cish_s)
-      | Cppish_ast.Return e ->
-          let cish_e = compile_exp e class_name in
-          Cish_ast.Return cish_e
-      | Cppish_ast.Let (v, e, s) ->
-          let cish_s = compile_stmt s class_name in
-            (match e with 
-            | (Cppish_ast.New (cname, exp_list), _) -> 
-              add object_class_map v cname;
-              fst(compile_obj_creation cname exp_list)
-            | _ -> 
-              let cish_e = compile_exp e class_name in
-              Cish_ast.Let (v, cish_e, cish_s) 
-            )
-    in
-    (cish_stmt, pos)
+and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): Cish_ast.stmt =
+  let cish_stmt =
+    match cpp_stmt with
+    | Cppish_ast.Exp e ->
+        let cish_e = compile_exp e class_name in
+        Cish_ast.Exp cish_e
+    | Cppish_ast.Seq (s1, s2) ->
+        let cish_s1 = compile_stmt s1 class_name in
+        let cish_s2 = compile_stmt s2 class_name in
+        Cish_ast.Seq (cish_s1, cish_s2)
+    | Cppish_ast.If (e, s1, s2) ->
+        let cish_e = compile_exp e class_name in
+        let cish_s1 = compile_stmt s1 class_name in
+        let cish_s2 = compile_stmt s2 class_name in
+        Cish_ast.If (cish_e, cish_s1, cish_s2)
+    | Cppish_ast.While (e, s) ->
+        let cish_e = compile_exp e class_name in
+        let cish_s = compile_stmt s class_name in
+        Cish_ast.While (cish_e, cish_s)
+    | Cppish_ast.For (e1, e2, e3, s) ->
+        let cish_e1 = compile_exp e1 class_name in
+        let cish_e2 = compile_exp e2 class_name in
+        let cish_e3 = compile_exp e3 class_name in
+        let cish_s = compile_stmt s class_name in
+        Cish_ast.For (cish_e1, cish_e2, cish_e3, cish_s)
+    | Cppish_ast.Return e ->
+        let cish_e = compile_exp e class_name in
+        Cish_ast.Return cish_e
+    | Cppish_ast.Let (v, e, s) ->
+          (match (fst e) with 
+          | Ptr (cname, pv, pe) -> (
+            match (fst pe) with
+            | Cppish_ast.New (cname, exp_list) -> 
+              fst (compile_obj_creation cname exp_list s v) (* TODO: keep in mind that this might need to be a let *)
+            | _ -> raise (CompilerError "")
+          )
+          | _ ->
+            print_endline (Cppish_ast.string_of_exp e);
+            let cish_e = compile_exp e class_name in
+            let cish_s = compile_stmt s class_name in
+            Cish_ast.Let (v, cish_e, cish_s) 
+          )
+  in
+  (cish_stmt, pos)
 
-let rec compile_class_function (cpp_func : Cppish_ast.func) (class_name: var option)  : Cish_ast.func =
+let rec compile_class_function (cpp_func : Cppish_ast.func) (class_name: var option) : Cish_ast.func =
 
   match cpp_func with
   | Cppish_ast.Fn cpp_funcsig ->
     (match class_name with
-    | None -> raise CompilerError
+    | None -> raise (CompilerError "compile_class_function class name not found")
     | Some cname ->
       let new_func_name = cname ^ "_" ^ cpp_funcsig.name in
-      let new_args = "this" :: cpp_funcsig.args in
+      let new_args = cpp_funcsig.args in
       let cpp_body = cpp_funcsig.body in
       let cpp_pos = cpp_funcsig.pos in
       let cish_body = compile_stmt cpp_body class_name in
@@ -260,13 +274,12 @@ let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
   | Cppish_ast.Klass cpp_classsig ->
       let classname = cpp_classsig.cname in
       let methods = cpp_classsig.cmethods in
-      let variables = cpp_classsig.cvars in
-
+      let variables = "refcount" :: cpp_classsig.cvars in
       (* List.iter (fun f -> 
         print_endline "Printing method ";
-        let x = string_of_func f in
+        let x = string_of_var_list f in
         print_endline x;
-      ) methods; *)
+      ) variables; *)
       
       (* Add class methods to the global method map *)
       List.iter (fun func ->
@@ -293,5 +306,7 @@ let rec compile_cppish (p: Cppish_ast.program) : Cish_ast.program =
   | fk::rem -> (
     match fk with
     | Fn2 f -> compile_function f :: (compile_cppish rem)
-    | Klass k -> compile_class k @ (compile_cppish rem)
+    | Klass k -> 
+        let compiled_class = compile_class k in
+        compiled_class @ (compile_cppish rem)
   )
