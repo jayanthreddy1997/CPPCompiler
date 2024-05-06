@@ -272,6 +272,7 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
     | Cppish_ast.Let (v, e, s) ->
           (match (fst e) with 
           | Ptr (cname, pv, pe) | UniquePtr (cname, pv, pe) -> (
+            add object_class_map v cname;
             match (fst pe) with
             | Cppish_ast.New (cname, exp_list) -> 
               fst (compile_obj_creation cname exp_list s v) (* TODO: keep in mind that this might need to be a let *)
