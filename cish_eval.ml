@@ -150,6 +150,9 @@ and eval_exp (e:exp) (env:env) : value =
           let p = !ap in
           if (p + i >= len) then error("out of heap memory")
           else (ap := p+i; Int_v(p*4)) 
+      | Free (e) ->
+        Printf.printf "Freeing memory location %d\n" (eval_int e env);
+        Int_v(0)
     in
     (if (!debug_flag) then 
       print_string ("eval_exp "^(exp2string e)^" yields "^(val2string res)^"\n")

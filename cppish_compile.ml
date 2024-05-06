@@ -4,6 +4,8 @@ exception NotImplemented
 exception ClassNotFoundException
 exception CompilerError of string
 
+let print_cish_ast = true
+
 type string_list_map = (string, string list) Hashtbl.t
 let label_counter = ref 0
 let new_int() = (label_counter := (!label_counter) + 1; !label_counter)
@@ -52,7 +54,7 @@ let get_offset_within_class (e: Cppish_ast.exp) v class_name =
       | None -> (* case 2*)
         (match e with
         | Var objname, _ ->
-          print_endline objname;
+          (* print_endline objname; *)
           let my_class_name_opt = Hashtbl.find_opt object_class_map objname in (* is there a case where v is not in the map?*)
           let my_class_name = (
             match my_class_name_opt with
@@ -209,7 +211,8 @@ and compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list)
               eu(Var(objname)), eu(Int(0))
             ))
             )
-          ) (* TODO: Add call to free *)
+          ) @@
+          su(Cish_ast.Exp(eu(Cish_ast.Free(eu(Cish_ast.Var(objname))))))
           
       )
     ))
@@ -289,7 +292,7 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
               
             | _ -> raise (CompilerError "Let Shared_ptr failed"))
           | _ ->
-            print_endline (Cppish_ast.string_of_exp e);
+            (* print_endline (Cppish_ast.string_of_exp e); *)
             let cish_e = compile_exp e class_name in
             let cish_s = compile_stmt s class_name in
             Cish_ast.Let (v, cish_e, cish_s) 
