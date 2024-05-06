@@ -222,8 +222,31 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
   let cish_stmt =
     match cpp_stmt with
     | Cppish_ast.Exp e ->
+        let extra_ins = (
+          (match e with
+            | Assign(v1,  e1), _ ->
+              let extra_ins = (match e1 with
+                | Var ev, _ ->
+                  (match (get object_class_map ev) with
+                  | Some cname_of_obj ->
+                    su(Exp(eu(Cish_ast.Store(
+                          eu(Cish_ast.Var(ev)), 
+                          eu(Cish_ast.Binop(
+                            eu(Cish_ast.Load(eu(Cish_ast.Var(ev)))),
+                            Cish_ast.Plus,
+                            eu(Int(1)))))) 
+                            ))
+                  | None -> su(Cish_ast.skip)
+                  )
+                | _ -> su(Cish_ast.skip)
+              ) in
+              extra_ins
+            | _ -> su(Cish_ast.skip))
+          ) in
+        
         let cish_e = compile_exp e class_name in
-        Cish_ast.Exp cish_e
+        Cish_ast.Seq(extra_ins, su(Cish_ast.Exp(cish_e)))
+        (* Cish_ast.Exp cish_e *)
     | Cppish_ast.Seq (s1, s2) ->
         let cish_s1 = compile_stmt s1 class_name in
         let cish_s2 = compile_stmt s2 class_name in
