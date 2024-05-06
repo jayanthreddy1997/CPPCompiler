@@ -1,8 +1,15 @@
 open Cppish_ast
 open Cish_ast
 exception NotImplemented
+exception ClassNotFoundException
+exception CompilerError
 
 type string_list_map = (string, string list) Hashtbl.t
+let label_counter = ref 0
+let new_int() = (label_counter := (!label_counter) + 1; !label_counter)
+
+(* generate a fresh temporary variable and store it in the variables set. *)
+let rec new_temp() = "t" ^ (string_of_int (new_int()))
 
 (* Create a new string list map *)
 let class_method_map : string_list_map = Hashtbl.create 10
@@ -25,11 +32,52 @@ let is_exist_in_map (map : string_list_map) (key : string) (value : string) : bo
   | Some ls -> List.mem value ls
   | None -> false
 
+type string_map = (string, string) Hashtbl.t
+let object_class_map: string_map = Hashtbl.create 10
 
+let add (map : string_map) (key : string) (value : string) : unit =
+  Hashtbl.add map key value
+
+let get (map : string_map) (key : string) : string option =
+  Hashtbl.find_opt map key
+
+let (@@) (s1:Cish_ast.stmt) (s2:Cish_ast.stmt) : Cish_ast.stmt = (Cish_ast.Seq (s1, s2), 0)
+let su (x: Cish_ast.rstmt): Cish_ast.stmt = (x, 0)
+let eu (x: Cish_ast.rexp): Cish_ast.exp = (x, 0)
+
+let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list): Cish_ast.stmt =
+  (* malloc the space necessary for the object*)
+  (* initialize refcount to 1 using the pointer returned by malloc *)
+  (* compile function call for constructor with malloced pointer as the first arg *)
+  let new_temp_var = new_temp() in
+  let cish_exp_list = List.map compile_exp exp_list in
+  match Hashtbl.find_opt class_variable_map cname with
+  | None -> raise ClassNotFoundException
+  | Some vlist ->
+    let malloc_size = (List.length vlist) + 1 in
+    su(Cish_ast.Exp(
+      eu(Cish_ast.Assign(
+          new_temp_var, 
+          eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4))))
+        )
+      )
+    )) @@
+    su(Cish_ast.Exp (
+      eu(Cish_ast.Store(
+        eu(Var(new_temp_var)), eu(Int(1))
+      ))
+      )
+    ) @@ 
+    su (Cish_ast.Exp (
+      eu(Cish_ast.Call(
+        eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
+        eu(Var(new_temp_var))::cish_exp_list
+      ))
+    ))
 
 (* Convert the function from Cppish_exp to Cish_exp *)
-let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
-  let cish_exp =
+and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
+  let cish_rexp =
     match cpp_exp with
     | Cppish_ast.Int i -> Cish_ast.Int i
     | Cppish_ast.Var v -> Cish_ast.Var v
@@ -83,12 +131,12 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
     | Cppish_ast.UniquePtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.Nil -> raise NotImplemented
-    | Cppish_ast.New (cname, exp_list) -> raise NotImplemented
+    | Cppish_ast.New (cname, exp_list) -> raise CompilerError
     | Cppish_ast.Invoke (e, v, exp_list) -> raise NotImplemented
     | Cppish_ast.AttrAccess (e, v) -> raise NotImplemented
     | Cppish_ast.AttrUpdate (e1, v, e2) -> raise NotImplemented
   in
-  (cish_exp, pos)
+  (cish_rexp, pos)
 
   (* Convert the function from Cppish_stmt to Cish_stmt *)
   let rec compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) : Cish_ast.stmt =
@@ -120,9 +168,13 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
           let cish_e = compile_exp e in
           Cish_ast.Return cish_e
       | Cppish_ast.Let (v, e, s) ->
-          let cish_e = compile_exp e in
           let cish_s = compile_stmt s in
-          Cish_ast.Let (v, cish_e, cish_s)
+            (match e with 
+            | (Cppish_ast.New (cname, exp_list), _) -> fst(compile_obj_creation cname exp_list)
+            | _ -> 
+              let cish_e = compile_exp e in
+              Cish_ast.Let (v, cish_e, cish_s) 
+            )
     in
     (cish_stmt, pos)
 
