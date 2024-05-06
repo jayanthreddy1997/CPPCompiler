@@ -292,21 +292,21 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
                     )) @@ 
                 (compile_stmt s (Some cname)) @@
                 su(Exp(eu(Cish_ast.Store(
-                  eu(Cish_ast.Var(e1)), 
+                  eu(Cish_ast.Var(pv)), 
                   eu(Cish_ast.Binop(
-                    eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
+                    eu(Cish_ast.Load(eu(Cish_ast.Var(pv)))),
                     Cish_ast.Minus,
                     eu(Int(1)))))) 
                     ))
                 @@
                   su(Cish_ast.If(
                     eu(Cish_ast.Binop(
-                      eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
+                      eu(Cish_ast.Load(eu(Cish_ast.Var(pv)))),
                       Cish_ast.Eq,
                       eu(Cish_ast.Int(0))
                     )),
                     su(Cish_ast.Exp(
-                      eu(Cish_ast.Free(eu(Cish_ast.Var(e1))))
+                      eu(Cish_ast.Free(eu(Cish_ast.Var(pv))))
                     )),
                     su(Cish_ast.skip)
                   ))
