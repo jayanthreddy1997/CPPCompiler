@@ -204,15 +204,27 @@ and compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list)
               eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
               eu(Var(objname))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
             ))
-          )) @@ 
+          )) @@
           (compile_stmt stmt_scope (Some cname)) @@ 
-          su(Cish_ast.Exp (
-            eu(Cish_ast.Store(
-              eu(Var(objname)), eu(Int(0))
-            ))
+          su(Exp(eu(Cish_ast.Store(
+            eu(Cish_ast.Var(objname)), 
+            eu(Cish_ast.Binop(
+              eu(Cish_ast.Load(eu(Cish_ast.Var(objname)))),
+              Cish_ast.Minus,
+              eu(Int(1)))))) 
             )
           ) @@
-          su(Cish_ast.Exp(eu(Cish_ast.Free(eu(Cish_ast.Var(objname))))))
+          su(Cish_ast.If(
+            eu(Cish_ast.Binop(
+              eu(Cish_ast.Load(eu(Cish_ast.Var(objname)))),
+              Cish_ast.Eq,
+              eu(Cish_ast.Int(0))
+            )),
+            su(Cish_ast.Exp(
+              eu(Cish_ast.Free(eu(Cish_ast.Var(objname))))
+            )),
+            su(Cish_ast.skip)
+          ))
           
       )
     ))
