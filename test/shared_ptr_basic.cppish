@@ -12,9 +12,14 @@ class Calculator {
 };
 
 main() {
-    let a = 1; {
-        let shared_ptr<Calculator> obj2 = new Calculator(3, 4); {
-            a = a + obj2.add();
+    let a = 0; {
+        let shared_ptr<Calculator> obj1 = new Calculator(3, 4); {
+            a = a + (*obj1);
+            let shared_ptr<Calculator> obj2 = obj1; {
+                a = a + (*obj1);
+            }
+            a = a + (*obj1);
+            
         }
         return a;
     }

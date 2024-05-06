@@ -76,37 +76,8 @@ let get_offset_within_class (e: Cppish_ast.exp) v class_name =
           | Some index_of_attr -> 4 * index_of_attr)
       )
 
-let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list) (stmt_scope: Cppish_ast.stmt) (objname: var): Cish_ast.stmt =
-  (* malloc the space necessary for the object*)
-  (* initialize refcount to 1 using the pointer returned by malloc *)
-  (* compile function call for constructor with malloced pointer as the first arg *)
-  (* Printf.printf "SIR %s" (Cppish_ast.string_of_rstmt (fst stmt_scope)); *)
-
-  match Hashtbl.find_opt class_variable_map cname with
-  | None -> raise ClassNotFoundException
-  | Some vlist ->
-    let malloc_size = (List.length vlist) in
-    su(Cish_ast.Let(
-          objname, 
-          eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4)))),
-          (su(Cish_ast.Exp (
-            eu(Cish_ast.Store(
-              eu(Var(objname)), eu(Int(1))
-            ))
-            )
-          ) @@ 
-          su (Cish_ast.Exp (
-            eu(Cish_ast.Call(
-              eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
-              eu(Var(objname))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
-            ))
-          )) @@ (compile_stmt stmt_scope (Some cname)))
-      )
-    )
-    
-
 (* Convert the function from Cppish_exp to Cish_exp *)
-and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish_ast.exp =
+let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish_ast.exp =
   let cish_rexp =
     match cpp_exp with
     | Cppish_ast.Int i -> Cish_ast.Int i
@@ -207,6 +178,41 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
     in
   (cish_rexp, pos)
 
+and compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list) (stmt_scope: Cppish_ast.stmt) (objname: var): Cish_ast.stmt =
+  (* malloc the space necessary for the object*)
+  (* initialize refcount to 1 using the pointer returned by malloc *)
+  (* compile function call for constructor with malloced pointer as the first arg *)
+  (* Printf.printf "SIR %s" (Cppish_ast.string_of_rstmt (fst stmt_scope)); *)
+
+  match Hashtbl.find_opt class_variable_map cname with
+  | None -> raise ClassNotFoundException
+  | Some vlist ->
+    let malloc_size = (List.length vlist) in
+    su(Cish_ast.Let(
+          objname, 
+          eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4)))),
+          (su(Cish_ast.Exp (
+            eu(Cish_ast.Store(
+              eu(Var(objname)), eu(Int(1))
+            ))
+            )
+          ) @@ 
+          su (Cish_ast.Exp (
+            eu(Cish_ast.Call(
+              eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
+              eu(Var(objname))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
+            ))
+          )) @@ 
+          (compile_stmt stmt_scope (Some cname)) @@ 
+          su(Cish_ast.Exp (
+            eu(Cish_ast.Store(
+              eu(Var(objname)), eu(Int(0))
+            ))
+            )
+          ) (* TODO: Add call to free *)
+      )
+    ))
+    
   (* Convert the function from Cppish_stmt to Cish_stmt *)
 and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): Cish_ast.stmt =
   let cish_stmt =
@@ -256,7 +262,17 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
                     eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
                     Cish_ast.Plus,
                     eu(Int(1)))))) 
-                    )) @@ (compile_stmt s (Some cname)))
+                    )) @@ 
+                (compile_stmt s (Some cname)) @@
+                su(Exp(eu(Cish_ast.Store(
+                  eu(Cish_ast.Var(e1)), 
+                  eu(Cish_ast.Binop(
+                    eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
+                    Cish_ast.Minus,
+                    eu(Int(1)))))) 
+                    ))
+                (* TODO: Add If ref_count==0 then call free *)
+              )
               
             | _ -> raise (CompilerError "Let Shared_ptr failed"))
           | _ ->
