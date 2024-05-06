@@ -20,6 +20,7 @@ type rexp =
 | Load of exp                         (* *(x+3) *)
 | Store of exp * exp                  (* *(x+3) = e *)
 | Malloc of exp                       (* malloc(i) *)
+| Free of exp
 
 (* every expression comes with its position *)
 and exp = rexp * pos
@@ -85,6 +86,7 @@ let rec e2s (p:int) ((e,_):exp) : string =
         | Call _ -> 100
         | Load _ -> 80
         | Store _ -> 5
+        | Free _ -> 100
         | Malloc _ -> 100 in
     let myprec = prec e in
     let (start,stop) = if myprec >= p then ("","") else ("(",")") in
@@ -99,6 +101,7 @@ let rec e2s (p:int) ((e,_):exp) : string =
     | Call(e,es) -> (e2s myprec e) ^ "(" ^ (es2s es) ^ ")"
     | Load e -> "*" ^ (e2s myprec e)
     | Store(e1,e2) -> "*"^(e2s 80 e1)^" = "^(e2s myprec e2)
+    | Free e -> "free(" ^ (e2s myprec e) ^ ")"
     | Malloc e -> "malloc("^(e2s myprec e)^")") ^ stop
 and es2s (es:exp list) : string = 
     match es with

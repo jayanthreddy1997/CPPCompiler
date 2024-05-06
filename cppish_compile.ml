@@ -4,6 +4,8 @@ exception NotImplemented
 exception ClassNotFoundException
 exception CompilerError of string
 
+let print_cish_ast = true
+
 type string_list_map = (string, string list) Hashtbl.t
 let label_counter = ref 0
 let new_int() = (label_counter := (!label_counter) + 1; !label_counter)
@@ -52,7 +54,7 @@ let get_offset_within_class (e: Cppish_ast.exp) v class_name =
       | None -> (* case 2*)
         (match e with
         | Var objname, _ ->
-          print_endline objname;
+          (* print_endline objname; *)
           let my_class_name_opt = Hashtbl.find_opt object_class_map objname in (* is there a case where v is not in the map?*)
           let my_class_name = (
             match my_class_name_opt with
@@ -76,39 +78,8 @@ let get_offset_within_class (e: Cppish_ast.exp) v class_name =
           | Some index_of_attr -> 4 * index_of_attr)
       )
 
-let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list) (stmt_scope: Cppish_ast.stmt) (objname: var): Cish_ast.stmt =
-  (* malloc the space necessary for the object*)
-  (* initialize refcount to 1 using the pointer returned by malloc *)
-  (* compile function call for constructor with malloced pointer as the first arg *)
-  let new_temp_var = objname in
-  (* Printf.printf "SIR %s" (Cppish_ast.string_of_rstmt (fst stmt_scope)); *)
-
-  match Hashtbl.find_opt class_variable_map cname with
-  | None -> raise ClassNotFoundException
-  | Some vlist ->
-    let malloc_size = (List.length vlist) in
-    add object_class_map new_temp_var cname;
-    su(Cish_ast.Let(
-          new_temp_var, 
-          eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4)))),
-          (su(Cish_ast.Exp (
-            eu(Cish_ast.Store(
-              eu(Var(new_temp_var)), eu(Int(1))
-            ))
-            )
-          ) @@ 
-          su (Cish_ast.Exp (
-            eu(Cish_ast.Call(
-              eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
-              eu(Var(new_temp_var))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
-            ))
-          )) @@ (compile_stmt stmt_scope (Some cname)))
-      )
-    )
-    
-
 (* Convert the function from Cppish_exp to Cish_exp *)
-and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish_ast.exp =
+let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish_ast.exp =
   let cish_rexp =
     match cpp_exp with
     | Cppish_ast.Int i -> Cish_ast.Int i
@@ -167,8 +138,8 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
       y = y+1;
     *)
     | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e class_name)
-    | Cppish_ast.UniquePtr (cname, v, e) -> raise NotImplemented
-    | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
+    | Cppish_ast.UniquePtr (cname, v, e) -> fst (compile_exp e class_name)
+    | Cppish_ast.SharedPtr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.Nil -> raise NotImplemented
     | Cppish_ast.New (cname, exp_list) -> raise (CompilerError "Unexpected call to new")
     | Cppish_ast.Invoke ((rexp, _), method_name, exp_list) ->
@@ -209,13 +180,73 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
     in
   (cish_rexp, pos)
 
+and compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list) (stmt_scope: Cppish_ast.stmt) (objname: var): Cish_ast.stmt =
+  (* malloc the space necessary for the object*)
+  (* initialize refcount to 1 using the pointer returned by malloc *)
+  (* compile function call for constructor with malloced pointer as the first arg *)
+  (* Printf.printf "SIR %s" (Cppish_ast.string_of_rstmt (fst stmt_scope)); *)
+
+  match Hashtbl.find_opt class_variable_map cname with
+  | None -> raise ClassNotFoundException
+  | Some vlist ->
+    let malloc_size = (List.length vlist) in
+    su(Cish_ast.Let(
+          objname, 
+          eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4)))),
+          (su(Cish_ast.Exp (
+            eu(Cish_ast.Store(
+              eu(Var(objname)), eu(Int(1))
+            ))
+            )
+          ) @@ 
+          su (Cish_ast.Exp (
+            eu(Cish_ast.Call(
+              eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
+              eu(Var(objname))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
+            ))
+          )) @@ 
+          (compile_stmt stmt_scope (Some cname)) @@ 
+          su(Cish_ast.Exp (
+            eu(Cish_ast.Store(
+              eu(Var(objname)), eu(Int(0))
+            ))
+            )
+          ) @@
+          su(Cish_ast.Exp(eu(Cish_ast.Free(eu(Cish_ast.Var(objname))))))
+          
+      )
+    ))
+    
   (* Convert the function from Cppish_stmt to Cish_stmt *)
 and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): Cish_ast.stmt =
   let cish_stmt =
     match cpp_stmt with
     | Cppish_ast.Exp e ->
+        let extra_ins = (
+          (match e with
+            | Assign(v1,  e1), _ ->
+              let extra_ins = (match e1 with
+                | Var ev, _ ->
+                  (match (get object_class_map ev) with
+                  | Some cname_of_obj ->
+                    su(Exp(eu(Cish_ast.Store(
+                          eu(Cish_ast.Var(ev)), 
+                          eu(Cish_ast.Binop(
+                            eu(Cish_ast.Load(eu(Cish_ast.Var(ev)))),
+                            Cish_ast.Plus,
+                            eu(Int(1)))))) 
+                            ))
+                  | None -> su(Cish_ast.skip)
+                  )
+                | _ -> su(Cish_ast.skip)
+              ) in
+              extra_ins
+            | _ -> su(Cish_ast.skip))
+          ) in
+        
         let cish_e = compile_exp e class_name in
-        Cish_ast.Exp cish_e
+        Cish_ast.Seq(extra_ins, su(Cish_ast.Exp(cish_e)))
+        (* Cish_ast.Exp cish_e *)
     | Cppish_ast.Seq (s1, s2) ->
         let cish_s1 = compile_stmt s1 class_name in
         let cish_s2 = compile_stmt s2 class_name in
@@ -240,14 +271,51 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
         Cish_ast.Return cish_e
     | Cppish_ast.Let (v, e, s) ->
           (match (fst e) with 
-          | Ptr (cname, pv, pe) -> (
+          | Ptr (cname, pv, pe) | UniquePtr (cname, pv, pe) -> (
             match (fst pe) with
             | Cppish_ast.New (cname, exp_list) -> 
               fst (compile_obj_creation cname exp_list s v) (* TODO: keep in mind that this might need to be a let *)
-            | _ -> raise (CompilerError "")
-          )
+            | _ -> raise (CompilerError "Ptr failed"))
+          | SharedPtr (cname, pv, pe) -> (
+            add object_class_map v cname;
+            match (fst pe) with
+            | Cppish_ast.New (cname, exp_list) -> fst (compile_obj_creation cname exp_list s v)
+            | Cppish_ast.Var e1 -> 
+              Cish_ast.Let(
+                v, eu(Cish_ast.Var(e1)),
+                (su(Exp(eu(Cish_ast.Store(
+                  eu(Cish_ast.Var(e1)), 
+                  eu(Cish_ast.Binop(
+                    eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
+                    Cish_ast.Plus,
+                    eu(Int(1)))))) 
+                    )) @@ 
+                (compile_stmt s (Some cname)) @@
+                su(Exp(eu(Cish_ast.Store(
+                  eu(Cish_ast.Var(pv)), 
+                  eu(Cish_ast.Binop(
+                    eu(Cish_ast.Load(eu(Cish_ast.Var(pv)))),
+                    Cish_ast.Minus,
+                    eu(Int(1)))))) 
+                    ))
+                @@
+                  su(Cish_ast.If(
+                    eu(Cish_ast.Binop(
+                      eu(Cish_ast.Load(eu(Cish_ast.Var(pv)))),
+                      Cish_ast.Eq,
+                      eu(Cish_ast.Int(0))
+                    )),
+                    su(Cish_ast.Exp(
+                      eu(Cish_ast.Free(eu(Cish_ast.Var(pv))))
+                    )),
+                    su(Cish_ast.skip)
+                  ))
+                )
+              )
+              
+            | _ -> raise (CompilerError "Let Shared_ptr failed"))
           | _ ->
-            print_endline (Cppish_ast.string_of_exp e);
+            (* print_endline (Cppish_ast.string_of_exp e); *)
             let cish_e = compile_exp e class_name in
             let cish_s = compile_stmt s class_name in
             Cish_ast.Let (v, cish_e, cish_s) 

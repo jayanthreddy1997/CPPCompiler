@@ -141,7 +141,7 @@ and string_of_rstmt (stmt : rstmt) : string =
       "for (" ^ string_of_exp init ^ "; " ^ string_of_exp cond ^ "; " ^ string_of_exp incr ^ ") " ^
       string_of_rstmt (fst body)
   | Return e -> "return " ^ string_of_exp e ^ ";"
-  | Let (v, e, body) -> "let " ^ v ^ " = " ^ string_of_exp e ^ " in " ^ string_of_rstmt (fst body)
+  | Let (v, e, body) -> "let " ^ v ^ " = " ^ string_of_exp e ^ " in {" ^ string_of_rstmt (fst body) ^"}"
 
 (* Convert a function signature (funcsig) to a string *)
 let string_of_funcsig (fs : funcsig) : string =

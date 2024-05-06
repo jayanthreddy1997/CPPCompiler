@@ -12,6 +12,7 @@ class Calculator {
 };
 
 main() {
-    unique_ptr<Calculator> up (new Calculator());
-    return up.add();
+    let unique_ptr<Calculator> up = new Calculator(3, 4);
+    let unique_ptr<Calculator> y = up;
+    return y.add();
 }
