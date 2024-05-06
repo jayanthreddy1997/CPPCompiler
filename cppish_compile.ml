@@ -133,7 +133,17 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
     | Cppish_ast.Nil -> raise NotImplemented
     | Cppish_ast.New (cname, exp_list) -> raise CompilerError
     | Cppish_ast.Invoke (e, v, exp_list) -> raise NotImplemented
-    | Cppish_ast.AttrAccess (e, v) -> raise NotImplemented
+    | Cppish_ast.AttrAccess (e, v) -> 
+      let offset = 0 in
+      (*
+      Case 1: in class def
+        we need to know which class we are in. Then we can pass classname as arg to all compile functions
+        now, use the class_variables_map for offset
+      Case 2: not in class def 
+        the classname arg will be effectively null (dummy). in this case, extract the classname from obj_class_map
+        and then do the same to compute offset, i.e., refer to class_variables_map for offset.
+      *)
+      Cish_ast.Load(eu(Cish_ast.Binop((compile_exp e), Cish_ast.Plus, eu(Int(offset)))))
     | Cppish_ast.AttrUpdate (e1, v, e2) -> raise NotImplemented
   in
   (cish_rexp, pos)
@@ -180,6 +190,24 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
     in
     (cish_stmt, pos)
 
+let rec compile_class_function (classname: var) (cpp_func : Cppish_ast.func) : Cish_ast.func =
+
+  match cpp_func with
+  | Cppish_ast.Fn cpp_funcsig ->
+      let new_func_name = classname ^ "_" ^ cpp_funcsig.name in
+      let new_args = "this" :: cpp_funcsig.args in
+      let cpp_body = cpp_funcsig.body in
+      let cpp_pos = cpp_funcsig.pos in
+      let cish_body = compile_stmt cpp_body in
+      let cish_funcsig = { 
+        Cish_ast.name = new_func_name;
+        Cish_ast.args = new_args;
+        Cish_ast.body = cish_body;
+        Cish_ast.pos = cpp_pos 
+      } in
+    Cish_ast.Fn cish_funcsig
+    
+
 (* Convert the function from Cppish_ast to Cish_ast *)
 let rec compile_function (cpp_func : Cppish_ast.func) : Cish_ast.func =
   match cpp_func with
@@ -225,10 +253,7 @@ let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
       (* Convert methods to Cish_ast functions *)
       List.map (fun m ->
         match m with
-          | Cppish_ast.Fn cpp_funcsig ->
-            let new_func_name = classname ^ "_" ^ cpp_funcsig.name in
-            let updated_cpp_funcsig = { cpp_funcsig with name = new_func_name } in
-            compile_function (Cppish_ast.Fn updated_cpp_funcsig )
+          | Cppish_ast.Fn cpp_funcsig -> compile_class_function classname m
       ) methods
 
 let rec compile_cppish (p: Cppish_ast.program) : Cish_ast.program = 
