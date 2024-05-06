@@ -170,7 +170,9 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
       | Cppish_ast.Let (v, e, s) ->
           let cish_s = compile_stmt s in
             (match e with 
-            | (Cppish_ast.New (cname, exp_list), _) -> fst(compile_obj_creation cname exp_list)
+            | (Cppish_ast.New (cname, exp_list), _) -> 
+              add object_class_map v cname;
+              fst(compile_obj_creation cname exp_list)
             | _ -> 
               let cish_e = compile_exp e in
               Cish_ast.Let (v, cish_e, cish_s) 
