@@ -3,6 +3,7 @@ open Cish_ast
 exception NotImplemented
 exception ClassNotFoundException
 exception CompilerError of string
+exception UniquePointerException
 
 let print_cish_ast = true
 
@@ -36,6 +37,7 @@ let is_exist_in_map (map : string_list_map) (key : string) (value : string) : bo
 
 type string_map = (string, string) Hashtbl.t
 let object_class_map: string_map = Hashtbl.create 10
+let unique_object_class_class: string_map = Hashtbl.create 10
 
 let add (map : string_map) (key : string) (value : string) : unit =
   Hashtbl.add map key value
@@ -129,14 +131,6 @@ let rec compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): 
     | Cppish_ast.Malloc e ->
         let cish_e = compile_exp e class_name in
         Cish_ast.Malloc cish_e
-    (* TODO:  Compilation of Cppish Pointers to Cish Pointers *)
-    (*
-      unique_pointer<class_name> p (new Class_name());
-      y = p
-      shared_pointer<class_name> p (p2);
-      y = p;
-      y = y+1;
-    *)
     | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.UniquePtr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.SharedPtr (cname, v, e) -> fst (compile_exp e class_name)
@@ -239,6 +233,11 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
             | Assign(v1,  e1), _ ->
               let extra_ins = (match e1 with
                 | Var ev, _ ->
+                  (match (get unique_object_class_class ev) with
+                  | Some cname_of_obj ->
+                    raise UniquePointerException
+                  | None -> ()
+                  );
                   (match (get object_class_map ev) with
                   | Some cname_of_obj ->
                     su(Exp(eu(Cish_ast.Store(
@@ -283,11 +282,18 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
         Cish_ast.Return cish_e
     | Cppish_ast.Let (v, e, s) ->
           (match (fst e) with 
-          | Ptr (cname, pv, pe) | UniquePtr (cname, pv, pe) -> (
+          | Ptr (cname, pv, pe) -> (
             add object_class_map v cname;
             match (fst pe) with
             | Cppish_ast.New (cname, exp_list) -> 
-              fst (compile_obj_creation cname exp_list s v) (* TODO: keep in mind that this might need to be a let *)
+              fst (compile_obj_creation cname exp_list s v)
+            | _ -> raise (CompilerError "Ptr failed"))
+          | UniquePtr (cname, pv, pe) -> (
+            add object_class_map v cname;
+            add unique_object_class_class v cname;
+            match (fst pe) with
+            | Cppish_ast.New (cname, exp_list) -> 
+              fst (compile_obj_creation cname exp_list s v)
             | _ -> raise (CompilerError "Ptr failed"))
           | SharedPtr (cname, pv, pe) -> (
             add object_class_map v cname;
