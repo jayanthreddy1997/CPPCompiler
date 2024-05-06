@@ -72,7 +72,7 @@ func_klass:
   
 
 klass:
-  CLASS ID LBRACE class_member RBRACE { Klass{cname=$2;cvars=$4.cvars;cmethods=$4.cmethods} }
+  CLASS ID LBRACE class_member RBRACE { Klass{cname=$2;cvars=($4.cvars);cmethods=$4.cmethods} }
 
 // TODO: need to define class_member and few others as a nonterminal
 class_member:
@@ -111,6 +111,7 @@ stmt :
 stmtlist :
   stmt { $1 }
 | stmt stmtlist { (Seq($1,$2), rhs 1) }
+| {(skip, rhs 1)}
 
 expopt : 
   { None }
