@@ -167,7 +167,7 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
       y = y+1;
     *)
     | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e class_name)
-    | Cppish_ast.UniquePtr (cname, v, e) -> raise NotImplemented
+    | Cppish_ast.UniquePtr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.Nil -> raise NotImplemented
     | Cppish_ast.New (cname, exp_list) -> raise (CompilerError "Unexpected call to new")
@@ -240,7 +240,7 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
         Cish_ast.Return cish_e
     | Cppish_ast.Let (v, e, s) ->
           (match (fst e) with 
-          | Ptr (cname, pv, pe) -> (
+          | Ptr (cname, pv, pe) | UniquePtr (cname, pv, pe) -> (
             match (fst pe) with
             | Cppish_ast.New (cname, exp_list) -> 
               fst (compile_obj_creation cname exp_list s v) (* TODO: keep in mind that this might need to be a let *)

@@ -107,6 +107,7 @@ stmt :
     }
 | LET ID EQ yexp SEMI stmt { (Let($2,$4,$6), rhs 1) }
 | LET ID ID EQ newobj SEMI stmt { (Let($3, (Ptr($2, $3, $5), rhs 1), $7), rhs 1) }
+| LET UNIQUE_PTR LT ID GT ID EQ newobj SEMI stmt { (Let($6, (UniquePtr($4, $6, $8), rhs 1), $10), rhs 1)} 
 
 stmtlist :
   stmt { $1 }
@@ -125,7 +126,7 @@ yexp:
 | TIMES yexp EQ newobj { (Store($2, $4), rhs 1)}  // *(p + y) = new class_name();
 | TIMES addexp EQ yexp{ (Store($2, $4), rhs 1)} //TODO: Revisit this.  // *(p+4) = e
 | TIMES addexp { (Load($2), rhs 1)} //TODO: Revisit this.  // *(p+4)
-| UNIQUE_PTR LT ID GT ID LPAREN newobj RPAREN { (UniquePtr($3, $5, $7), rhs 1)} 
+// | UNIQUE_PTR LT ID GT ID LPAREN newobj RPAREN { (UniquePtr($3, $5, $7), rhs 1)} 
 | SHARED_PTR LT ID GT ID LPAREN ID RPAREN { (SharedPtr($3, $5, (Var($7), rhs 1)), rhs 1)} // p = shared_ptr<class_name>(y)
 | SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { (SharedPtr($3, $5, $7), rhs 1)}
 
