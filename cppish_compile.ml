@@ -45,12 +45,34 @@ let (@@) (s1:Cish_ast.stmt) (s2:Cish_ast.stmt) : Cish_ast.stmt = (Cish_ast.Seq (
 let su (x: Cish_ast.rstmt): Cish_ast.stmt = (x, 0)
 let eu (x: Cish_ast.rexp): Cish_ast.exp = (x, 0)
 
+let get_offset_within_class (e: Cppish_ast.exp) v class_name =
+  (match class_name with
+      | None -> (* case 2*)
+        (match e with
+        | Var v, _ ->
+          let my_class_name_opt = Hashtbl.find_opt object_class_map v in (* is there a case where v is not in the map?*)
+          let my_class_name = (
+            match my_class_name_opt with
+            | None -> raise CompilerError
+            | Some my_class_name -> my_class_name
+          ) in
+          let attrlist = Hashtbl.find class_variable_map my_class_name in
+          let num_attrs = List.length attrlist in
+          4 * num_attrs
+        | _ -> raise CompilerError (* To access attributes, it has to be through a var, i.e, identifier*)
+        )
+      | Some cname ->
+        let attrlist = Hashtbl.find class_variable_map cname in
+        let num_attrs = List.length attrlist in
+        4 * num_attrs
+      )
+
 let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list): Cish_ast.stmt =
   (* malloc the space necessary for the object*)
   (* initialize refcount to 1 using the pointer returned by malloc *)
   (* compile function call for constructor with malloced pointer as the first arg *)
   let new_temp_var = new_temp() in
-  let cish_exp_list = List.map compile_exp exp_list in
+  let cish_exp_list = List.map (fun x -> (compile_exp x (Some(cname)))) exp_list in
   match Hashtbl.find_opt class_variable_map cname with
   | None -> raise ClassNotFoundException
   | Some vlist ->
@@ -76,14 +98,14 @@ let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp l
     ))
 
 (* Convert the function from Cppish_exp to Cish_exp *)
-and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
+and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish_ast.exp =
   let cish_rexp =
     match cpp_exp with
     | Cppish_ast.Int i -> Cish_ast.Int i
     | Cppish_ast.Var v -> Cish_ast.Var v
     | Cppish_ast.Binop (e1, op, e2) ->
-        let cish_e1 = compile_exp e1 in
-        let cish_e2 = compile_exp e2 in
+        let cish_e1 = compile_exp e1 class_name in
+        let cish_e2 = compile_exp e2 class_name in
         let cish_op = (
           match op with
           | Cppish_ast.Plus -> Cish_ast.Plus
@@ -99,42 +121,42 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
         in
         Cish_ast.Binop (cish_e1, cish_op, cish_e2)
     | Cppish_ast.Not e ->
-        let cish_e = compile_exp e in
+        let cish_e = compile_exp e class_name in
         Cish_ast.Not cish_e
     | Cppish_ast.And (e1, e2) ->
-        let cish_e1 = compile_exp e1 in
-        let cish_e2 = compile_exp e2 in
+        let cish_e1 = compile_exp e1 class_name in
+        let cish_e2 = compile_exp e2 class_name in
         Cish_ast.And (cish_e1, cish_e2)
     | Cppish_ast.Or (e1, e2) ->
-        let cish_e1 = compile_exp e1 in
-        let cish_e2 = compile_exp e2 in
+        let cish_e1 = compile_exp e1 class_name in
+        let cish_e2 = compile_exp e2 class_name in
         Cish_ast.Or (cish_e1, cish_e2)
     | Cppish_ast.Assign (v, e) ->
-        let cish_e = compile_exp e in
+        let cish_e = compile_exp e class_name in
         Cish_ast.Assign (v, cish_e)
     | Cppish_ast.Call (f, args) ->
         let cish_f = (Cish_ast.Var f, pos) in
-        let cish_args = List.map compile_exp args in
+        let cish_args = (List.map (fun a -> compile_exp a class_name) args) in
         Cish_ast.Call (cish_f, cish_args)
     | Cppish_ast.Load e ->
-        let cish_e = compile_exp e in
+        let cish_e = compile_exp e class_name in
         Cish_ast.Load cish_e
     | Cppish_ast.Store (e1, e2) ->
-        let cish_e1 = compile_exp e1 in
-        let cish_e2 = compile_exp e2 in
+        let cish_e1 = compile_exp e1 class_name in
+        let cish_e2 = compile_exp e2 class_name in
         Cish_ast.Store (cish_e1, cish_e2)
     | Cppish_ast.Malloc e ->
-        let cish_e = compile_exp e in
+        let cish_e = compile_exp e class_name in
         Cish_ast.Malloc cish_e
     (* TODO:  Compilation of Cppish Pointers to Cish Pointers *)
-    | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e)
+    | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.UniquePtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
     | Cppish_ast.Nil -> raise NotImplemented
     | Cppish_ast.New (cname, exp_list) -> raise CompilerError
     | Cppish_ast.Invoke (e, v, exp_list) -> raise NotImplemented
     | Cppish_ast.AttrAccess (e, v) -> 
-      let offset = 0 in
+      let offset = get_offset_within_class e v class_name in
       (*
       Case 1: in class def
         we need to know which class we are in. Then we can pass classname as arg to all compile functions
@@ -143,69 +165,77 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) : Cish_ast.exp =
         the classname arg will be effectively null (dummy). in this case, extract the classname from obj_class_map
         and then do the same to compute offset, i.e., refer to class_variables_map for offset.
       *)
-      Cish_ast.Load(eu(Cish_ast.Binop((compile_exp e), Cish_ast.Plus, eu(Int(offset)))))
-    | Cppish_ast.AttrUpdate (e1, v, e2) -> raise NotImplemented
-  in
+      Cish_ast.Load(eu(Cish_ast.Binop((compile_exp e class_name), Cish_ast.Plus, eu(Int(offset)))))
+    | Cppish_ast.AttrUpdate (e1, v, e2) ->
+      let offset = get_offset_within_class e1 v class_name in
+      Cish_ast.Store(
+        eu(Cish_ast.Binop((compile_exp e1 class_name), Cish_ast.Plus, eu(Int(offset)))),
+        (compile_exp e2 class_name)
+      )
+    in
   (cish_rexp, pos)
 
   (* Convert the function from Cppish_stmt to Cish_stmt *)
-  let rec compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) : Cish_ast.stmt =
+  let rec compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): Cish_ast.stmt =
     let cish_stmt =
       match cpp_stmt with
       | Cppish_ast.Exp e ->
-          let cish_e = compile_exp e in
+          let cish_e = compile_exp e class_name in
           Cish_ast.Exp cish_e
       | Cppish_ast.Seq (s1, s2) ->
-          let cish_s1 = compile_stmt s1 in
-          let cish_s2 = compile_stmt s2 in
+          let cish_s1 = compile_stmt s1 class_name in
+          let cish_s2 = compile_stmt s2 class_name in
           Cish_ast.Seq (cish_s1, cish_s2)
       | Cppish_ast.If (e, s1, s2) ->
-          let cish_e = compile_exp e in
-          let cish_s1 = compile_stmt s1 in
-          let cish_s2 = compile_stmt s2 in
+          let cish_e = compile_exp e class_name in
+          let cish_s1 = compile_stmt s1 class_name in
+          let cish_s2 = compile_stmt s2 class_name in
           Cish_ast.If (cish_e, cish_s1, cish_s2)
       | Cppish_ast.While (e, s) ->
-          let cish_e = compile_exp e in
-          let cish_s = compile_stmt s in
+          let cish_e = compile_exp e class_name in
+          let cish_s = compile_stmt s class_name in
           Cish_ast.While (cish_e, cish_s)
       | Cppish_ast.For (e1, e2, e3, s) ->
-          let cish_e1 = compile_exp e1 in
-          let cish_e2 = compile_exp e2 in
-          let cish_e3 = compile_exp e3 in
-          let cish_s = compile_stmt s in
+          let cish_e1 = compile_exp e1 class_name in
+          let cish_e2 = compile_exp e2 class_name in
+          let cish_e3 = compile_exp e3 class_name in
+          let cish_s = compile_stmt s class_name in
           Cish_ast.For (cish_e1, cish_e2, cish_e3, cish_s)
       | Cppish_ast.Return e ->
-          let cish_e = compile_exp e in
+          let cish_e = compile_exp e class_name in
           Cish_ast.Return cish_e
       | Cppish_ast.Let (v, e, s) ->
-          let cish_s = compile_stmt s in
+          let cish_s = compile_stmt s class_name in
             (match e with 
             | (Cppish_ast.New (cname, exp_list), _) -> 
               add object_class_map v cname;
               fst(compile_obj_creation cname exp_list)
             | _ -> 
-              let cish_e = compile_exp e in
+              let cish_e = compile_exp e class_name in
               Cish_ast.Let (v, cish_e, cish_s) 
             )
     in
     (cish_stmt, pos)
 
-let rec compile_class_function (classname: var) (cpp_func : Cppish_ast.func) : Cish_ast.func =
+let rec compile_class_function (cpp_func : Cppish_ast.func) (class_name: var option)  : Cish_ast.func =
 
   match cpp_func with
   | Cppish_ast.Fn cpp_funcsig ->
-      let new_func_name = classname ^ "_" ^ cpp_funcsig.name in
+    (match class_name with
+    | None -> raise CompilerError
+    | Some cname ->
+      let new_func_name = cname ^ "_" ^ cpp_funcsig.name in
       let new_args = "this" :: cpp_funcsig.args in
       let cpp_body = cpp_funcsig.body in
       let cpp_pos = cpp_funcsig.pos in
-      let cish_body = compile_stmt cpp_body in
+      let cish_body = compile_stmt cpp_body class_name in
       let cish_funcsig = { 
         Cish_ast.name = new_func_name;
         Cish_ast.args = new_args;
         Cish_ast.body = cish_body;
         Cish_ast.pos = cpp_pos 
       } in
-    Cish_ast.Fn cish_funcsig
+    Cish_ast.Fn cish_funcsig)
     
 
 (* Convert the function from Cppish_ast to Cish_ast *)
@@ -216,7 +246,7 @@ let rec compile_function (cpp_func : Cppish_ast.func) : Cish_ast.func =
       let cpp_args = cpp_funcsig.args in
       let cpp_body = cpp_funcsig.body in
       let cpp_pos = cpp_funcsig.pos in
-      let cish_body = compile_stmt cpp_body in
+      let cish_body = compile_stmt cpp_body None in
       let cish_funcsig = { 
         Cish_ast.name = cpp_name;
         Cish_ast.args = cpp_args;
@@ -253,7 +283,7 @@ let compile_class (klass : Cppish_ast.klass) : Cish_ast.func list =
       (* Convert methods to Cish_ast functions *)
       List.map (fun m ->
         match m with
-          | Cppish_ast.Fn cpp_funcsig -> compile_class_function classname m
+          | Cppish_ast.Fn cpp_funcsig -> compile_class_function m (Some(classname))
       ) methods
 
 let rec compile_cppish (p: Cppish_ast.program) : Cish_ast.program = 
