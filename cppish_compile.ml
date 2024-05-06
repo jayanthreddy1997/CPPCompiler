@@ -80,27 +80,25 @@ let rec compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp l
   (* malloc the space necessary for the object*)
   (* initialize refcount to 1 using the pointer returned by malloc *)
   (* compile function call for constructor with malloced pointer as the first arg *)
-  let new_temp_var = objname in
   (* Printf.printf "SIR %s" (Cppish_ast.string_of_rstmt (fst stmt_scope)); *)
 
   match Hashtbl.find_opt class_variable_map cname with
   | None -> raise ClassNotFoundException
   | Some vlist ->
     let malloc_size = (List.length vlist) in
-    add object_class_map new_temp_var cname;
     su(Cish_ast.Let(
-          new_temp_var, 
+          objname, 
           eu(Cish_ast.Malloc(eu(Cish_ast.Int(malloc_size*4)))),
           (su(Cish_ast.Exp (
             eu(Cish_ast.Store(
-              eu(Var(new_temp_var)), eu(Int(1))
+              eu(Var(objname)), eu(Int(1))
             ))
             )
           ) @@ 
           su (Cish_ast.Exp (
             eu(Cish_ast.Call(
               eu(Cish_ast.Var(cname ^ "_"  ^ cname)), 
-              eu(Var(new_temp_var))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
+              eu(Var(objname))::(List.map (fun x -> (compile_exp x (Some(cname)))) exp_list)
             ))
           )) @@ (compile_stmt stmt_scope (Some cname)))
       )
@@ -168,7 +166,7 @@ and compile_exp ((cpp_exp, pos) : Cppish_ast.exp) (class_name: var option): Cish
     *)
     | Cppish_ast.Ptr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.UniquePtr (cname, v, e) -> fst (compile_exp e class_name)
-    | Cppish_ast.SharedPtr (cname, v, e) -> raise NotImplemented
+    | Cppish_ast.SharedPtr (cname, v, e) -> fst (compile_exp e class_name)
     | Cppish_ast.Nil -> raise NotImplemented
     | Cppish_ast.New (cname, exp_list) -> raise (CompilerError "Unexpected call to new")
     | Cppish_ast.Invoke ((rexp, _), method_name, exp_list) ->
@@ -244,8 +242,18 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
             match (fst pe) with
             | Cppish_ast.New (cname, exp_list) -> 
               fst (compile_obj_creation cname exp_list s v) (* TODO: keep in mind that this might need to be a let *)
-            | _ -> raise (CompilerError "")
-          )
+            | _ -> raise (CompilerError "Ptr failed"))
+          | SharedPtr (cname, pv, pe) -> (
+            add object_class_map v cname;
+            match (fst pe) with
+            | Cppish_ast.New (cname, exp_list) -> fst (compile_obj_creation cname exp_list s v)
+            | Cppish_ast.Var e1 -> 
+              (* TODO: inc ref count *)
+              (Cish_ast.Let(
+                v, eu(Cish_ast.Var(e1)),
+                (compile_stmt s (Some cname)))
+              )
+            | _ -> raise (CompilerError "Let Shared_ptr failed"))
           | _ ->
             print_endline (Cppish_ast.string_of_exp e);
             let cish_e = compile_exp e class_name in
