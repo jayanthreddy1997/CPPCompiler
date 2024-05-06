@@ -210,6 +210,7 @@ and compile_obj_creation (cname: Cppish_ast.var) (exp_list: Cppish_ast.exp list)
             ))
             )
           ) (* TODO: Add call to free *)
+          
       )
     ))
     
@@ -256,7 +257,7 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
             | Cppish_ast.Var e1 -> 
               Cish_ast.Let(
                 v, eu(Cish_ast.Var(e1)),
-                su(Exp(eu(Cish_ast.Store(
+                (su(Exp(eu(Cish_ast.Store(
                   eu(Cish_ast.Var(e1)), 
                   eu(Cish_ast.Binop(
                     eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
@@ -271,7 +272,19 @@ and compile_stmt ((cpp_stmt, pos) : Cppish_ast.stmt) (class_name: var option): C
                     Cish_ast.Minus,
                     eu(Int(1)))))) 
                     ))
-                (* TODO: Add If ref_count==0 then call free *)
+                @@
+                  su(Cish_ast.If(
+                    eu(Cish_ast.Binop(
+                      eu(Cish_ast.Load(eu(Cish_ast.Var(e1)))),
+                      Cish_ast.Eq,
+                      eu(Cish_ast.Int(0))
+                    )),
+                    su(Cish_ast.Exp(
+                      eu(Cish_ast.Free(eu(Cish_ast.Var(e1))))
+                    )),
+                    su(Cish_ast.skip)
+                  ))
+                )
               )
               
             | _ -> raise (CompilerError "Let Shared_ptr failed"))
