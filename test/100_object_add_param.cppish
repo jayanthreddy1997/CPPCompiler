@@ -1,0 +1,16 @@
+class Calculator {
+  Calculator (this) {
+
+  }
+  add(this, x, y){
+    return x+y;
+  }
+};
+
+main() {
+  let Calculator obj = new Calculator(); {
+    let x = obj.add(10, 5); {
+      return x;
+    }
+  }
+}

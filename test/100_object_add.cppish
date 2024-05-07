@@ -10,10 +10,12 @@ class Calculator {
   add(this){
     return this.x+this.y;
   }
-}
+};
 
 main() {
-  let Calculator obj = new Calculator(10, 5);
-  let x = obj.add();
-  return x;
+  let Calculator obj = new Calculator(10, 5); {
+    let x = obj.add(); {
+      return x;
+    }
+  }
 }

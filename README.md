@@ -1,9 +1,9 @@
-# CPPCompiler
-C++ Compiler
+# C++ Compiler
+Compiles C++(subset of functionalities) down to C(subset of functionalities) and evaluates it. 
 
-Command to run a test `make; ./cpp_compiler < test/test1.cppish`
-
-To run multiple tests from test folder in the project `./runit.sh` 
-This will create a output directory with their corresponding input filename. 
-
-To view the generated Cish code set `print_cish_ast` to true in cppish_compile.ml
+### Run instructions
+- OCAML version >5.1
+- Use `make` to compile the code. Executable with name `cpp_compiler` is created
+- Testing: `./cpp_compiler < test/100_shared_ptr_basic.cppish`
+- To run multiple tests from test folder in the project `./runit.sh`. This will create a output directory with their corresponding input filenames. 
+- (For debugging) To view the generated Cish code set `print_cish_ast` to true in cppish_compile.ml

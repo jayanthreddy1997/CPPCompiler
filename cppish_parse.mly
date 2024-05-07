@@ -74,7 +74,6 @@ func_klass:
 klass:
   CLASS ID LBRACE class_member RBRACE { Klass{cname=$2;cvars=($4.cvars);cmethods=$4.cmethods} }
 
-// TODO: need to define class_member and few others as a nonterminal
 class_member:
     LET ID SEMI class_member { {cvars=$2 :: $4.cvars; cmethods=$4.cmethods} }
   | func class_member { {cvars=$2.cvars; cmethods=$1 :: $2.cmethods} }
@@ -128,8 +127,8 @@ yexp:
 | ID DOT ID EQ yexp { (AttrUpdate((Var($1), rhs 1), $3, $5), rhs 1) }
 // | ID TIMES ID EQ newobj{ (Ptr($1, $3, $5), rhs 1) } // class_name *p = new class_name();
 | TIMES yexp EQ newobj { (Store($2, $4), rhs 1)}  // *(p + y) = new class_name();
-| TIMES addexp EQ yexp{ (Store($2, $4), rhs 1)} //TODO: Revisit this.  // *(p+4) = e
-| TIMES addexp { (Load($2), rhs 1)} //TODO: Revisit this.  // *(p+4)
+| TIMES addexp EQ yexp{ (Store($2, $4), rhs 1)} 
+| TIMES addexp { (Load($2), rhs 1)}
 // | UNIQUE_PTR LT ID GT ID LPAREN newobj RPAREN { (UniquePtr($3, $5, $7), rhs 1)} 
 // | SHARED_PTR LT ID GT ID LPAREN ID RPAREN { (SharedPtr($3, $5, (Var($7), rhs 1)), rhs 1)} // p = shared_ptr<class_name>(y)
 // | SHARED_PTR LT ID GT ID LPAREN newobj RPAREN { (SharedPtr($3, $5, $7), rhs 1)}
@@ -185,7 +184,7 @@ atomicexp :
 | funccall{ ($1, rhs 1) }
 | MALLOC LPAREN yexp RPAREN { (Malloc($3), rhs 1) }
 | LPAREN yexp RPAREN { $2 }
-| ID DOT ID LPAREN RPAREN { (Invoke((Var($1), rhs 1), $3, []), rhs 1) } // TODO: check if yexp is enough
+| ID DOT ID LPAREN RPAREN { (Invoke((Var($1), rhs 1), $3, []), rhs 1) } 
 | ID DOT ID LPAREN explist RPAREN { (Invoke((Var($1), rhs 1), $3, $5), rhs 1) }
 | ID DOT ID { (AttrAccess((Var($1), rhs 1), $3), rhs 1) }
 | LPAREN yexp RPAREN DOT ID LPAREN explist RPAREN { (Invoke($2, $5, $7), rhs 1) }
